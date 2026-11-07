@@ -20,7 +20,7 @@ export function playAll(groupId) {
   openPlayer(items, 0, { playlist: true });
 }
 
-function addMenu(groupId) {
+export function addMenu(groupId) {
   const here = groupId || 'root';
   menu(t('library.add'), [
     { label: t('library.newTechnique'), icon: 'technique', onSelect: () => nav(`/new/t/${here}`) },

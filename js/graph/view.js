@@ -13,6 +13,7 @@ import { getMeta, setMeta } from '../db.js';
 import { techniqueThumb, thumbNode } from '../media.js';
 import { chrome, $main, nav, routes } from '../ui.js';
 import { openPlayer } from '../player.js';
+import { addMenu } from '../views/library.js';
 import {
   buildLibraryGraph, resolvePositions, nodeSize, graphBounds, curvePath, arrowPath,
   TECH_THUMB_H,
@@ -91,7 +92,14 @@ export async function renderGraph(scopeArg, focusId) {
   setPref('jn.graphScope', scopeId);
   setLibraryLayout('GRAPH');
 
-  chrome({ title: t('library.title'), tab: 'library' });
+  // + adds into the group being looked at: the selected group, the selected technique's group, or the scope.
+  const addTarget = () => {
+    const sel = state.selectedId && state.graph ? state.graph.byId.get(state.selectedId) : null;
+    if (sel && sel.kind === 'group') return sel.id;
+    if (sel && sel.kind === 'technique') return validGroupId(sel.technique.groupId);
+    return state.scopeId;
+  };
+  chrome({ title: t('library.title'), tab: 'library', actions: [iconButton('add', t('library.add'), () => addMenu(addTarget()))] });
   document.body.classList.add('graph-mode');
   const placeStage = () => document.documentElement.style.setProperty('--graph-top', `${document.getElementById('topbar').getBoundingClientRect().bottom}px`);
   placeStage();

@@ -6,6 +6,8 @@ import {
 } from '../library.js';
 import { chrome, $main, nav, goBack, routes, groupOptions } from '../ui.js';
 import { urlFor, coverFromImage } from '../media.js';
+import { pickMedia, storePicked, ADD_KINDS } from '../addmedia.js';
+import { formatBytes } from '../ui.js';
 
 function field(label, control, hint) {
   return h('label', { class: 'form-field' }, h('span', { class: 'form-label' }, label), control, hint ? h('span', { class: 'form-hint' }, hint) : null);
@@ -125,6 +127,7 @@ export function renderTechniqueEditor({ id, inGroup }) {
   const leads = leadsToEditor(x.id, x.leadsToIds);
   const related = leadsToEditor(x.id, relatedOf(x.id).map((r) => r.id));
   const cover = coverEditor(x.coverKey);
+  const pending = existing ? null : pendingMedia();
 
   const save = async () => {
     const n = name.value.trim();
@@ -143,7 +146,9 @@ export function renderTechniqueEditor({ id, inGroup }) {
     await commit({ techniques: [{ ...row, modifiedAt: Date.now() }, ...others] });
     const c = cover.result();
     if (c !== undefined) await setCover('technique', row.id, c);
-    toast(t('editor.saved'));
+    // The technique is saved first, so a failed or slow video never loses what was typed.
+    if (pending && pending.files().length) await storePicked(row.id, pending.files());
+    else toast(t('editor.saved'));
     if (existing) goBack(routes.technique(row.id));
     else nav(routes.technique(row.id), { replace: true });
   };
@@ -158,6 +163,7 @@ export function renderTechniqueEditor({ id, inGroup }) {
   fill($main(), h('form', { class: 'form', onsubmit: (e) => { e.preventDefault(); save(); } },
     field(t('editor.name'), name),
     field(t('editor.folder'), folder),
+    pending ? h('div', { class: 'form-field' }, h('span', { class: 'form-label' }, t('media.title')), pending.el) : null,
     h('div', { class: 'form-2' }, field(t('editor.difficulty'), difficulty), field(t('editor.classification'), classification)),
     field(t('editor.position'), position),
     field(t('technique.description'), description),
@@ -170,6 +176,42 @@ export function renderTechniqueEditor({ id, inGroup }) {
     h('div', { class: 'form-field' }, h('span', { class: 'form-label' }, t('editor.cover')), cover.el),
     h('button', { class: 'btn block', type: 'submit' }, t('common.save'))));
   if (!existing) setTimeout(() => name.focus(), 50);
+}
+
+/**
+ * Photos, videos and files picked while creating a technique, held here until Save stores them.
+ * Previews use the picked files directly (a paused video shows its frame in every browser).
+ */
+function pendingMedia() {
+  const files = [];
+  const urls = new Map();
+  const grid = h('div', { class: 'pending-grid' });
+  const draw = () => {
+    fill(grid, files.map((f, i) => {
+      if (!urls.has(f)) urls.set(f, URL.createObjectURL(f));
+      const url = urls.get(f);
+      const kind = (f.type || '').split('/')[0];
+      const preview = kind === 'image'
+        ? h('img', { src: url, alt: '' })
+        : kind === 'video'
+          ? Object.assign(h('video', { src: `${url}#t=0.5`, preload: 'metadata', playsinline: true, 'aria-hidden': 'true' }), { muted: true })
+          : h('span', { class: 'doc' }, icon('doc', 24));
+      return h('div', { class: `pending-tile ${kind}` }, preview,
+        h('span', { class: 'pending-name', dir: 'auto' }, f.name || kind, ' · ', formatBytes(f.size)),
+        iconButton('close', t('common.remove'), () => {
+          files.splice(i, 1);
+          URL.revokeObjectURL(url);
+          urls.delete(f);
+          draw();
+        }, 'pending-remove'));
+    }));
+  };
+  const buttons = h('div', { class: 'add-row' }, ADD_KINDS.map(({ kind, icon: name, label, iconOnly }) =>
+    h('button', {
+      class: 'pl-chip add-chip', type: 'button', 'aria-label': iconOnly ? t(label) : null, title: iconOnly ? t(label) : null,
+      onclick: async () => { const picked = await pickMedia(kind); if (picked.length) { files.push(...picked); draw(); } },
+    }, icon(name, 18), iconOnly ? null : t(label))));
+  return { el: h('div', {}, buttons, grid), files: () => files };
 }
 
 // --- group ---------------------------------------------------------------------------------------

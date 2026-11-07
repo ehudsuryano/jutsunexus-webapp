@@ -1,15 +1,15 @@
-import { h, icon, iconButton, menu, confirmDialog, toast, pickFiles, fill } from '../dom.js';
+import { h, icon, iconButton, menu, confirmDialog, toast, fill } from '../dom.js';
 import { t, tn } from '../i18n.js';
 import {
-  lib, mediaOf, deleteTechnique, deleteMedia, reorderMedia, setFavorite, setCover, addMediaFiles,
+  lib, mediaOf, deleteTechnique, deleteMedia, reorderMedia, setFavorite, setCover,
   leadsTo, comesFrom, relatedOf, validGroupId,
 } from '../library.js';
 import { chrome, $main, nav, routes, techniqueHead, techniqueSections, section, techniqueRow, formatDuration } from '../ui.js';
-import { urlFor, mediaThumb, mediaThumbUrl, thumbNode, probe, coverFromImage, firstVideoOf, compressPhoto } from '../media.js';
-import { getBlob, isQuotaError } from '../db.js';
+import { urlFor, mediaThumb, mediaThumbUrl, thumbNode, coverFromImage, firstVideoOf } from '../media.js';
+import { getBlob } from '../db.js';
 import { openPlayer } from '../player.js';
 import { shareExport } from '../share.js';
-import { getPref } from '../prefs.js';
+import { pickMedia, storePicked, ADD_KINDS } from '../addmedia.js';
 
 /** Arrange mode is per technique and survives the re-render after each change. */
 let arranging = null;
@@ -51,11 +51,11 @@ export function renderTechnique(id) {
     : null;
   const head = h('div', { class: 'section-head' }, h('h2', {}, media.length ? t('media.titleCount', { n: media.length }) : t('media.title')), h('span', { class: 'spacer' }), arrangeBtn);
   // As in the app: take a photo, record a video, or pick from the gallery or files.
-  const addRow = h('div', { class: 'add-row' },
-    h('button', { class: 'pl-chip add-chip', type: 'button', onclick: () => addMedia(x, rerender, 'photo') }, icon('camera', 18), t('media.photo')),
-    h('button', { class: 'pl-chip add-chip', type: 'button', onclick: () => addMedia(x, rerender, 'video') }, icon('videocam', 18), t('media.video')),
-    h('button', { class: 'pl-chip add-chip', type: 'button', onclick: () => addMedia(x, rerender, 'gallery') }, icon('image', 18), t('media.gallery')),
-    h('button', { class: 'pl-chip add-chip', type: 'button', 'aria-label': t('media.file'), title: t('media.file'), onclick: () => addMedia(x, rerender, 'file') }, icon('doc', 18)));
+  const addRow = h('div', { class: 'add-row' }, ADD_KINDS.map(({ kind, icon: name, label, iconOnly }) =>
+    h('button', {
+      class: 'pl-chip add-chip', type: 'button', 'aria-label': iconOnly ? t(label) : null, title: iconOnly ? t(label) : null,
+      onclick: () => addMedia(x, rerender, kind),
+    }, icon(name, 18), iconOnly ? null : t(label))));
   const grid = media.length
     ? h('div', { class: `media-grid${arranging ? ' arranging' : ''}` }, media.map((m, i) => mediaTile(x, m, i, media, openAt, rerender)))
     : null;
@@ -166,27 +166,10 @@ async function useAsCover(x, m, rerender) {
   }
 }
 
-const PICKERS = {
-  // `capture` opens the camera straight away on a phone; a computer shows its file picker.
-  photo: { accept: 'image/*', capture: 'environment' },
-  video: { accept: 'video/*', capture: 'environment' },
-  gallery: { accept: 'image/*,video/*', multiple: true },
-  file: { accept: '', multiple: true },
-};
-
 export async function addMedia(x, rerender, kind = 'gallery') {
-  const picked = await pickFiles(PICKERS[kind] || PICKERS.gallery);
+  const picked = await pickMedia(kind);
   if (!picked.length) return;
-  try {
-    toast(t('media.adding', { done: 0, total: picked.length }), 60000);
-    const quality = getPref('photoQuality');
-    const files = [];
-    for (const f of picked) files.push(f.type.startsWith('image/') ? await compressPhoto(f, quality) : f);
-    await addMediaFiles(x.id, files, probe, (n) => toast(t('media.adding', { done: n, total: files.length }), 60000));
-    toast(tn('media.added', picked.length));
-  } catch (e) {
-    toast(isQuotaError(e) ? t('import.noSpace') : ((e && e.message) || String(e)), 6000);
-  }
+  await storePicked(x.id, picked);
   rerender();
 }
 
