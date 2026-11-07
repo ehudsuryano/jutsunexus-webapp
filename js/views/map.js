@@ -7,7 +7,7 @@ import { h, icon, fill } from '../dom.js';
 import { t } from '../i18n.js';
 import { lib, validGroupId } from '../library.js';
 import { chrome, $main, nav, routes } from '../ui.js';
-import { techniqueThumbUrl } from '../media.js';
+import { techniqueThumb, thumbNode } from '../media.js';
 
 const NODE_WIDTH = 150;
 const NODE_HEIGHT = 64;
@@ -164,7 +164,7 @@ export function renderMap(id) {
     const x = n.technique;
     const where = validGroupId(x.groupId) ? lib.groups.get(x.groupId).name : null;
     const thumb = h('span', { class: 'map-thumb' }, icon('technique', 22));
-    techniqueThumbUrl(x).then((u) => { if (u) thumb.replaceChildren(h('img', { src: u, alt: '' })); }).catch(() => {});
+    techniqueThumb(x).then((r) => { const n = thumbNode(r); if (n) thumb.replaceChildren(n); }).catch(() => {});
     box.append(h('button', {
       class: `map-node${n.isFocus ? ' focus' : ''}`, type: 'button',
       style: { left: `${n.x}px`, top: `${n.y}px`, width: `${NODE_WIDTH}px`, height: `${NODE_HEIGHT}px` },

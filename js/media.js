@@ -6,7 +6,7 @@
  * revoked once there are many, so browsing a long list doesn't pin every file.
  */
 import * as db from './db.js';
-import { lib, mediaOf, setThumb } from './library.js';
+import { lib, mediaOf, setThumb, commit } from './library.js';
 
 const urls = new Map(); // key -> url (insertion order = age)
 const MAX_URLS = 80;
@@ -72,16 +72,45 @@ function once(target, events, ms) {
   });
 }
 
-function canvasBlob(source, w, h, maxW = 360) {
+function canvasBlob(source, w, h, maxW = 360, rejectBlank = false) {
   const scale = Math.min(1, maxW / Math.max(1, w));
   const cw = Math.max(1, Math.round(w * scale));
   const ch = Math.max(1, Math.round(h * scale));
   const canvas = document.createElement('canvas');
   canvas.width = cw;
   canvas.height = ch;
-  canvas.getContext('2d').drawImage(source, 0, 0, cw, ch);
+  const ctx = canvas.getContext('2d', { willReadFrequently: rejectBlank });
+  ctx.drawImage(source, 0, 0, cw, ch);
+  if (rejectBlank && isBlank(ctx, cw, ch)) return Promise.resolve(null);
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.8));
 }
+
+/** All (near) black: what a browser hands back when it can't copy a video frame. */
+function isBlank(ctx, w, h) {
+  const d = ctx.getImageData(0, 0, w, h).data;
+  let sum = 0;
+  let max = 0;
+  for (let i = 0; i < d.length; i += 16) {
+    const v = d[i] + d[i + 1] + d[i + 2];
+    sum += v;
+    if (v > max) max = v;
+  }
+  return sum / (d.length / 16) < 15 && max < 60;
+}
+
+// --- can this browser copy a frame out of a video? ------------------------------------------------
+// Firefox on Android can show a video but every copy of a frame (canvas, createImageBitmap) comes
+// out black, and it has no WebCodecs (measured on Firefox 159 for Android, 2026-11-07). There the
+// thumbnail is the paused video itself, showing its frame at 0.5 s.
+
+const FRAME_KEY = 'jn.frameCopy';
+let frameCopy = (() => { try { return localStorage.getItem(FRAME_KEY) || 'unknown'; } catch { return 'unknown'; } })();
+function setFrameCopy(v) {
+  frameCopy = v;
+  try { localStorage.setItem(FRAME_KEY, v); } catch { /* private mode */ }
+}
+let blankCopies = 0;
+export const canCopyFrames = () => frameCopy !== 'no';
 
 let probeChain = Promise.resolve();
 
@@ -126,11 +155,18 @@ async function probeVideo(blob) {
       width: v.videoWidth || null,
       height: v.videoHeight || null,
     };
+    if (!canCopyFrames()) return info;
     try {
       if (v.readyState < 2) await once(v, ['loadeddata'], 8000);
       v.currentTime = Math.min(0.5, (v.duration || 1) / 3);
       await once(v, ['seeked'], 8000);
-      if (v.videoWidth > 0) info.thumb = await canvasBlob(v, v.videoWidth, v.videoHeight);
+      if (v.videoWidth > 0) {
+        const thumb = await canvasBlob(v, v.videoWidth, v.videoHeight, 360, true);
+        if (thumb) { info.thumb = thumb; if (frameCopy !== 'yes') setFrameCopy('yes'); }
+        // Two blank copies from a browser that has never given a real one: it can't copy frames.
+        // (One alone could be a clip that really starts on black.)
+        else if (frameCopy !== 'yes' && ++blankCopies >= 2) setFrameCopy('no');
+      }
     } catch {
       // No frame (iOS sometimes won't decode off-screen): the tile falls back to an icon.
     }
@@ -199,15 +235,54 @@ export async function coverFromImage(file) {
 // --- thumbnails ---------------------------------------------------------------------------------
 
 const pendingThumbs = new Map();
+const checkedThumbs = new Map();
 
-/** The thumbnail URL of a media row; makes and stores one for a video that has none yet. */
-export async function mediaThumbUrl(m) {
-  if (m.type === 'IMAGE') return urlFor(m.blobKey);
-  if (m.type !== 'VIDEO') return null;
-  if (m.thumbKey) {
-    const u = await urlFor(m.thumbKey);
-    if (u) return u;
+/**
+ * A thumbnail stored before blank frames were caught may itself be black (made by Firefox on
+ * Android). Checked once per row: a black one is dropped so the live-frame fallback takes over.
+ */
+function storedThumbOk(m) {
+  if (m.thumbOk) return Promise.resolve(true);
+  if (!checkedThumbs.has(m.id)) {
+    checkedThumbs.set(m.id, (async () => {
+      const blob = await db.getBlob(m.thumbKey);
+      if (!blob) return false;
+      const url = URL.createObjectURL(blob);
+      try {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        const blank = !(await canvasBlob(img, img.naturalWidth, img.naturalHeight, 64, true));
+        const fresh = lib.media.get(m.id);
+        if (!fresh) return false;
+        if (blank) {
+          await commit({ media: [{ ...fresh, thumbKey: null, thumbOk: false }], delBlobs: [m.thumbKey] });
+          forget([m.thumbKey]);
+          return false;
+        }
+        await commit({ media: [{ ...fresh, thumbOk: true }] });
+        return true;
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    })().catch(() => false));
   }
+  return checkedThumbs.get(m.id);
+}
+
+/**
+ * What to show as a media row's thumbnail: { img: url } (a photo, or a stored video frame) or
+ * { video: url } (the paused clip itself, for browsers that can't copy frames). null = an icon.
+ */
+export async function mediaThumb(m) {
+  if (m.type === 'IMAGE') { const u = await urlFor(m.blobKey); return u ? { img: u } : null; }
+  if (m.type !== 'VIDEO') return null;
+  const live = async () => { const u = await urlFor(m.blobKey); return u ? { video: `${u}#t=0.5` } : null; };
+  if (m.thumbKey && (await storedThumbOk(m))) {
+    const u = await urlFor(m.thumbKey);
+    if (u) return { img: u };
+  }
+  if (!canCopyFrames()) return live();
   if (!pendingThumbs.has(m.id)) {
     pendingThumbs.set(m.id, (async () => {
       const blob = await db.getBlob(m.blobKey);
@@ -218,17 +293,41 @@ export async function mediaThumbUrl(m) {
       return urlFor(`th:${m.id}`);
     })().catch(() => null));
   }
-  return pendingThumbs.get(m.id);
+  const u = await pendingThumbs.get(m.id);
+  return u ? { img: u } : live();
+}
+
+/** Only a stored image (for covers made from a video frame); null where frames can't be copied. */
+export async function mediaThumbUrl(m) {
+  const r = await mediaThumb(m);
+  return r && r.img ? r.img : null;
 }
 
 /** Library thumbnail of a technique: its cover, else its first video (as in the app). */
-export async function techniqueThumbUrl(t) {
+export async function techniqueThumb(t) {
   if (t.coverKey) {
     const u = await urlFor(t.coverKey);
-    if (u) return u;
+    if (u) return { img: u };
   }
   const firstVideo = mediaOf(t.id).find((m) => m.type === 'VIDEO');
-  return firstVideo ? mediaThumbUrl(firstVideo) : null;
+  return firstVideo ? mediaThumb(firstVideo) : null;
+}
+
+/** The element for a thumbnail result: an <img>, or a paused muted video showing one frame. */
+export function thumbNode(res) {
+  if (!res) return null;
+  if (res.img) return Object.assign(document.createElement('img'), { src: res.img, alt: '', decoding: 'async' });
+  const v = document.createElement('video');
+  v.muted = true;
+  v.playsInline = true;
+  v.setAttribute('playsinline', '');
+  v.preload = 'metadata';
+  v.disablePictureInPicture = true;
+  v.tabIndex = -1;
+  v.setAttribute('aria-hidden', 'true');
+  v.className = 'thumb-video';
+  v.src = res.video;
+  return v;
 }
 
 export function firstVideoOf(t) {

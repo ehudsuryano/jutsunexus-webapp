@@ -5,7 +5,7 @@ import {
   leadsTo, comesFrom, relatedOf, validGroupId,
 } from '../library.js';
 import { chrome, $main, nav, routes, techniqueHead, techniqueSections, section, techniqueRow, formatDuration } from '../ui.js';
-import { urlFor, mediaThumbUrl, probe, coverFromImage, firstVideoOf, compressPhoto } from '../media.js';
+import { urlFor, mediaThumb, mediaThumbUrl, thumbNode, probe, coverFromImage, firstVideoOf, compressPhoto } from '../media.js';
 import { getBlob, isQuotaError } from '../db.js';
 import { openPlayer } from '../player.js';
 import { shareExport } from '../share.js';
@@ -93,7 +93,7 @@ function hero(x, openAt) {
   if (!v) return null;
   const btn = h('button', { class: 'cover hero-video', type: 'button', 'aria-label': t('player.play'), onclick: () => openAt(v) },
     h('span', { class: 'hero-play' }, icon('play', 36)));
-  mediaThumbUrl(v).then((u) => { if (u) btn.prepend(h('img', { src: u, alt: '' })); });
+  mediaThumb(v).then((r) => { const n = thumbNode(r); if (n) btn.prepend(n); });
   return btn;
 }
 
@@ -106,10 +106,11 @@ function mediaTile(x, m, index, all, openAt, rerender) {
     urlFor(m.blobKey).then((u) => u && tile.prepend(h('img', { src: u, alt: '', loading: 'lazy', decoding: 'async' })));
   } else if (m.type === 'VIDEO') {
     tile.append(h('span', { class: 'tile-icon' }, icon('play', 32)));
-    mediaThumbUrl(m).then((u) => {
-      if (!u) return;
+    mediaThumb(m).then((r) => {
+      const n = thumbNode(r);
+      if (!n) return;
       tile.querySelector('.tile-icon')?.remove();
-      tile.prepend(h('img', { src: u, alt: '', loading: 'lazy', decoding: 'async' }));
+      tile.prepend(n);
     });
     tile.append(h('span', { class: 'badge' }, icon('play', 12), formatDuration(m.durationMs) || t('media.video')));
   } else {

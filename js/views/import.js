@@ -113,8 +113,9 @@ function preview(pkg, destination, status) {
     bar.hidden = false;
     progressText.hidden = false;
     progressText.textContent = t('import.saving');
-    // Ask the browser not to clear the library when space runs low (granted silently or not at all).
-    try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch { /* optional */ }
+    // Ask the browser not to clear the library when space runs low. Never wait for the answer:
+    // Firefox shows a permission prompt and its promise waits until it is answered (or forever).
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch { /* optional */ }
     try {
       const where = dest.value || null;
       const result = await importPackage(pkg, where, (done, total) => {

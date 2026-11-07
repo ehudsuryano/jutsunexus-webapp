@@ -13,7 +13,7 @@ import { lib, mediaOf } from '../library.js';
 import { chrome, $main, routes, formatDuration, formatBytes } from '../ui.js';
 import { techniqueViewerLink } from '../links.js';
 import { getBlob } from '../db.js';
-import { mediaThumbUrl } from '../media.js';
+import { mediaThumb, thumbNode } from '../media.js';
 
 /** Past this a QR code stops being scannable from a phone at arm's length; the link still works. */
 const QR_COMFORTABLE_LENGTH = 1200;
@@ -131,7 +131,7 @@ export function renderYouTube(id) {
   const list = h('div', { class: 'list yt-clips' });
   const drawList = () => fill(list, videos.map((m) => {
     const thumb = h('span', { class: 'thumb' }, icon('play', 24));
-    mediaThumbUrl(m).then((u) => { if (u) thumb.replaceChildren(h('img', { src: u, alt: '' })); }).catch(() => {});
+    mediaThumb(m).then((r) => { const n = thumbNode(r); if (n) thumb.replaceChildren(n); }).catch(() => {});
     return h('button', {
       class: `item yt-clip${m === picked ? ' on' : ''}`, type: 'button', 'aria-pressed': String(m === picked),
       onclick: () => { picked = m; drawList(); prepare(m); },

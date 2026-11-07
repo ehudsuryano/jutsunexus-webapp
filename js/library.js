@@ -298,7 +298,7 @@ export async function addMediaFiles(techniqueId, files, probe, onEach) {
     const row = {
       id, techniqueId, type, fileName: file.name || `${type.toLowerCase()}_${Date.now()}`, mimeType,
       sizeBytes: file.size, durationMs: info.durationMs ?? null, width: info.width ?? null, height: info.height ?? null,
-      sortOrder: ++order, createdAt: Date.now(), blobKey: `m:${id}`, thumbKey: info.thumb ? `th:${id}` : null,
+      sortOrder: ++order, createdAt: Date.now(), blobKey: `m:${id}`, thumbKey: info.thumb ? `th:${id}` : null, thumbOk: !!info.thumb,
     };
     const blobs = [[row.blobKey, file]];
     if (info.thumb) blobs.push([row.thumbKey, info.thumb]);
@@ -315,5 +315,5 @@ export async function setThumb(mediaId, blob) {
   const m = lib.media.get(mediaId);
   if (!m) return;
   const key = `th:${mediaId}`;
-  await commit({ media: [{ ...m, thumbKey: key }], blobs: [[key, blob]] });
+  await commit({ media: [{ ...m, thumbKey: key, thumbOk: true }], blobs: [[key, blob]] });
 }

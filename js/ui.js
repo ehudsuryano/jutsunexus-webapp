@@ -2,7 +2,7 @@
 import { h, icon, iconButton } from './dom.js';
 import { t, tn, ltr, isRtl } from './i18n.js';
 import { lib, ancestry, childGroups, countTechniquesUnder, mediaOf } from './library.js';
-import { urlFor, techniqueThumbUrl } from './media.js';
+import { urlFor, techniqueThumb, thumbNode } from './media.js';
 
 export const $main = () => document.getElementById('main');
 
@@ -82,8 +82,9 @@ export function chrome({ title, back = null, actions = [], tab = null, crumbs, c
 export function thumbBox(kind, loadUrl, extra) {
   const box = h('span', { class: `thumb ${kind}` }, icon(kind === 'group' ? 'folder' : 'technique', 28), extra);
   if (loadUrl) {
-    loadUrl().then((url) => {
-      if (url && box.isConnected !== false) box.replaceChildren(h('img', { src: url, alt: '', loading: 'lazy', decoding: 'async' }), extra || '');
+    loadUrl().then((res) => {
+      const node = typeof res === 'string' ? h('img', { src: res, alt: '', loading: 'lazy', decoding: 'async' }) : thumbNode(res);
+      if (node) box.replaceChildren(node, extra || '');
     }).catch(() => {});
   }
   return box;
@@ -108,7 +109,7 @@ export function techniqueRow(x) {
     x.position || null,
   ].filter(Boolean).join(' • ');
   return h('a', { class: 'item', href: `#${routes.technique(x.id)}` },
-    thumbBox('technique', () => techniqueThumbUrl(x), videos > 0 ? h('span', { class: 'thumb-play' }, icon('play', 14)) : null),
+    thumbBox('technique', () => techniqueThumb(x), videos > 0 ? h('span', { class: 'thumb-play' }, icon('play', 14)) : null),
     h('span', { class: 'item-body' },
       h('span', { class: 'item-title', dir: 'auto' }, x.isFavorite ? h('span', { class: 'fav-dot', 'aria-label': t('technique.favorite') }, icon('star', 14)) : null, x.name),
       meta ? h('span', { class: 'item-meta' }, meta) : null,

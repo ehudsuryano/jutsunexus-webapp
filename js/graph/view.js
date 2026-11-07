@@ -10,7 +10,7 @@ import { h, icon, iconButton, fill, sheet, toast } from '../dom.js';
 import { t, tn } from '../i18n.js';
 import { lib, mediaOf, validGroupId, childGroups, commit } from '../library.js';
 import { getMeta, setMeta } from '../db.js';
-import { techniqueThumbUrl } from '../media.js';
+import { techniqueThumb, thumbNode } from '../media.js';
 import { chrome, $main, nav, routes } from '../ui.js';
 import { openPlayer } from '../player.js';
 import {
@@ -270,7 +270,7 @@ export async function renderGraph(scopeArg, focusId) {
     const videos = mediaOf(x.id).filter((m) => m.type === 'VIDEO').length;
     const thumb = h('span', { class: 'g-thumb', style: { height: `${TECH_THUMB_H}px` } }, icon('technique', 28),
       videos ? h('span', { class: 'g-play' }, icon('play', 14)) : null);
-    techniqueThumbUrl(x).then((u) => { if (u) thumb.prepend(h('img', { src: u, alt: '', decoding: 'async' })); }).catch(() => {});
+    techniqueThumb(x).then((r) => { const n = thumbNode(r); if (n) thumb.prepend(n); }).catch(() => {});
     return h('div', { class: 'g-node g-tech' }, thumb, h('span', { class: 'g-label', dir: 'auto' }, node.name));
   }
 
@@ -568,7 +568,7 @@ export async function renderGraph(scopeArg, focusId) {
       const videos = mediaOf(x.id).filter((m) => m.type === 'VIDEO');
       const groupName = validGroupId(x.groupId) ? lib.groups.get(x.groupId).name : t('library.title');
       const thumb = h('span', { class: 'g-preview-thumb' }, icon('technique', 28));
-      techniqueThumbUrl(x).then((u) => { if (u) thumb.replaceChildren(h('img', { src: u, alt: '' })); }).catch(() => {});
+      techniqueThumb(x).then((r) => { const n = thumbNode(r); if (n) thumb.replaceChildren(n); }).catch(() => {});
       return [thumb, h('div', { class: 'g-preview-body' },
         h('b', { dir: 'auto' }, node.name),
         h('small', {}, h('span', { dir: 'auto' }, groupName), ' · ', tn('count.videos', videos.length)),
