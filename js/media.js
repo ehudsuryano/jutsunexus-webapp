@@ -143,6 +143,46 @@ async function probeVideo(blob) {
   }
 }
 
+// --- photo size (the app's "Photo quality") ----------------------------------------------------
+
+const PHOTO_MAX_EDGE = { HIGH: 3072, BALANCED: 2048 };
+const PHOTO_JPEG_QUALITY = 0.85;
+const MIN_PHOTO_BYTES = 300 * 1024;
+
+/**
+ * A new photo shrunk to the chosen size before it is stored, as the Android app does: the longer
+ * edge to 3072 or 2048 px, JPEG at 85% (PNG stays PNG). Small photos, and any photo the browser
+ * can't decode, are kept as they are. Videos are never re-encoded here — a browser can't.
+ */
+export async function compressPhoto(file, quality) {
+  if (quality === 'ORIGINAL' || !PHOTO_MAX_EDGE[quality] || file.size < MIN_PHOTO_BYTES) return file;
+  if (!/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.type || '')) return file;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const w = img.naturalWidth;
+    const hgt = img.naturalHeight;
+    const scale = Math.min(1, PHOTO_MAX_EDGE[quality] / Math.max(w, hgt));
+    const png = /png/i.test(file.type);
+    if (scale === 1 && !/heic|heif/i.test(file.type)) return file;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(hgt * scale));
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    const type = png ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, type, PHOTO_JPEG_QUALITY));
+    if (!blob || blob.size >= file.size) return file;
+    const base = (file.name || 'photo').replace(/\.[^.]+$/, '');
+    return new File([blob], `${base}.${png ? 'png' : 'jpg'}`, { type, lastModified: Date.now() });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 /** Downscaled copy of a picked photo for use as a cover. */
 export async function coverFromImage(file) {
   const url = URL.createObjectURL(file);

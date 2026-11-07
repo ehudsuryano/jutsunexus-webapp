@@ -5,10 +5,11 @@ import {
   leadsTo, comesFrom, relatedOf, validGroupId,
 } from '../library.js';
 import { chrome, $main, nav, routes, techniqueHead, techniqueSections, section, techniqueRow, formatDuration } from '../ui.js';
-import { urlFor, mediaThumbUrl, probe, coverFromImage, firstVideoOf } from '../media.js';
+import { urlFor, mediaThumbUrl, probe, coverFromImage, firstVideoOf, compressPhoto } from '../media.js';
 import { getBlob, isQuotaError } from '../db.js';
 import { openPlayer } from '../player.js';
-import { shareExport, shareTechniqueLink } from '../share.js';
+import { shareExport } from '../share.js';
+import { getPref } from '../prefs.js';
 
 /** Arrange mode is per technique and survives the re-render after each change. */
 let arranging = null;
@@ -44,16 +45,24 @@ export function renderTechnique(id) {
   const parts = [hero(x, openAt), techniqueHead(x)];
 
   // Media
-  const addBtn = h('button', { class: 'text-btn', type: 'button', onclick: () => addMedia(x, rerender) }, icon('add', 18), t('media.add'));
   const arrangeBtn = media.length > 1 || (arranging && media.length)
     ? h('button', { class: `text-btn${arranging ? ' on' : ''}`, type: 'button', onclick: () => { arranging = arranging ? null : id; rerender(); } },
         arranging ? t('media.done') : t('media.arrange'))
     : null;
-  const head = h('div', { class: 'section-head' }, h('h2', {}, media.length ? t('media.titleCount', { n: media.length }) : t('media.title')), h('span', { class: 'spacer' }), arrangeBtn, addBtn);
+  const head = h('div', { class: 'section-head' }, h('h2', {}, media.length ? t('media.titleCount', { n: media.length }) : t('media.title')), h('span', { class: 'spacer' }), arrangeBtn);
+  // As in the app: take a photo, record a video, or pick from the gallery or files.
+  const addRow = h('div', { class: 'add-row' },
+    h('button', { class: 'pl-chip add-chip', type: 'button', onclick: () => addMedia(x, rerender, 'photo') }, icon('camera', 18), t('media.photo')),
+    h('button', { class: 'pl-chip add-chip', type: 'button', onclick: () => addMedia(x, rerender, 'video') }, icon('videocam', 18), t('media.video')),
+    h('button', { class: 'pl-chip add-chip', type: 'button', onclick: () => addMedia(x, rerender, 'gallery') }, icon('image', 18), t('media.gallery')),
+    h('button', { class: 'pl-chip add-chip', type: 'button', 'aria-label': t('media.file'), title: t('media.file'), onclick: () => addMedia(x, rerender, 'file') }, icon('doc', 18)));
   const grid = media.length
     ? h('div', { class: `media-grid${arranging ? ' arranging' : ''}` }, media.map((m, i) => mediaTile(x, m, i, media, openAt, rerender)))
-    : h('button', { class: 'media-empty', type: 'button', onclick: () => addMedia(x, rerender) }, icon('image', 28), h('span', {}, t('media.empty')));
-  parts.push(h('section', { class: 'section' }, head, grid));
+    : null;
+  const ytBtn = media.some((m) => m.type === 'VIDEO')
+    ? h('a', { class: 'text-btn yt-link', href: `#/youtube/${id}` }, icon('youtube', 18), t('yt.title'))
+    : null;
+  parts.push(h('section', { class: 'section' }, head, addRow, ytBtn, grid));
 
   parts.push(...techniqueSections(x));
 
@@ -156,13 +165,24 @@ async function useAsCover(x, m, rerender) {
   }
 }
 
-export async function addMedia(x, rerender) {
-  const files = await pickFiles({ accept: 'image/*,video/*,application/pdf', multiple: true });
-  if (!files.length) return;
+const PICKERS = {
+  // `capture` opens the camera straight away on a phone; a computer shows its file picker.
+  photo: { accept: 'image/*', capture: 'environment' },
+  video: { accept: 'video/*', capture: 'environment' },
+  gallery: { accept: 'image/*,video/*', multiple: true },
+  file: { accept: '', multiple: true },
+};
+
+export async function addMedia(x, rerender, kind = 'gallery') {
+  const picked = await pickFiles(PICKERS[kind] || PICKERS.gallery);
+  if (!picked.length) return;
   try {
-    toast(t('media.adding', { done: 0, total: files.length }), 60000);
+    toast(t('media.adding', { done: 0, total: picked.length }), 60000);
+    const quality = getPref('photoQuality');
+    const files = [];
+    for (const f of picked) files.push(f.type.startsWith('image/') ? await compressPhoto(f, quality) : f);
     await addMediaFiles(x.id, files, probe, (n) => toast(t('media.adding', { done: n, total: files.length }), 60000));
-    toast(tn('media.added', files.length));
+    toast(tn('media.added', picked.length));
   } catch (e) {
     toast(isQuotaError(e) ? t('import.noSpace') : ((e && e.message) || String(e)), 6000);
   }
@@ -176,7 +196,8 @@ function techniqueMenu(x) {
       label: t('library.playAll'), icon: 'play',
       onSelect: () => openPlayer(mediaOf(x.id).filter((m) => m.type === 'VIDEO').map((m) => ({ media: m, title: x.name })), 0, { playlist: true }),
     } : null,
-    { label: t('share.link'), icon: 'link', onSelect: () => shareTechniqueLink(x) },
+    { label: t('qr.menu'), icon: 'qr', onSelect: () => nav(`/qr/${x.id}`) },
+    hasVideo ? { label: t('yt.title'), icon: 'youtube', onSelect: () => nav(`/youtube/${x.id}`) } : null,
     { label: t('share.packageMedia'), icon: 'share', onSelect: () => shareExport({ kind: 'technique', id: x.id }, true) },
     { label: t('share.packageText'), icon: 'share', onSelect: () => shareExport({ kind: 'technique', id: x.id }, false) },
     x.coverKey ? { label: t('media.removeCover'), icon: 'image', onSelect: async () => { await setCover('technique', x.id, null); renderTechnique(x.id); } } : null,

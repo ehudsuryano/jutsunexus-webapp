@@ -1,0 +1,46 @@
+/* Camera / gallery buttons, QR and YouTube screens, view options, search filters, profile. */
+
+/* Add media: Photo / Video / Gallery / File, as in the app. */
+.add-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.add-chip { color: var(--on-bg); border-color: var(--outline); background: var(--surface); padding: 6px 11px; min-width: 44px; gap: 5px; }
+.add-chip:hover { background: var(--surface-high); }
+.yt-link { margin: -4px 0 8px; color: var(--on-bg); }
+.yt-link svg { color: var(--youtube); }
+
+/* View modes for the library list. */
+.list.view-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 620px) { .list.view-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.list.view-cards .item { flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; }
+.list.view-cards .thumb { width: 100%; height: auto; aspect-ratio: 16 / 10; border-radius: 10px; }
+.list.view-cards .item-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.list.view-compact { gap: 4px; }
+.list.view-compact .item { min-height: 52px; padding: 4px 10px; gap: 10px; }
+.list.view-compact .thumb { width: 40px; height: 40px; border-radius: 8px; }
+.list.view-compact .thumb svg { width: 20px; height: 20px; }
+.list.view-compact .difficulty { display: none; }
+.list-top { align-items: center; }
+
+/* Search filters */
+.filters { margin-top: 10px; gap: 8px; flex-wrap: nowrap; }
+.filter-chip { color: var(--on-bg); border-color: var(--outline); background: transparent; flex: none; }
+.filter-chip.on { background: var(--primary-container); border-color: var(--primary); color: var(--on-primary-container); }
+.filter-select { flex: 0 1 auto; width: auto; height: 40px; }
+.filter-select.on { border-color: var(--primary); background-color: var(--primary-container); }
+
+/* QR */
+.qr-box { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.qr-img { width: min(300px, 80vw); height: auto; border-radius: 12px; image-rendering: pixelated; background: #fff; }
+
+/* YouTube */
+.yt-clips .yt-clip { text-align: start; border: 2px solid transparent; }
+.yt-clips .yt-clip.on { border-color: var(--primary); }
+.yt-clips .yt-clip > svg { color: var(--primary); flex: none; }
+.yt-text { color: var(--on-bg) !important; overflow-wrap: anywhere; }
+
+/* Profile */
+.profile-card { display: flex; align-items: center; gap: 14px; color: var(--on-bg); text-decoration: none; }
+.profile-card .item-body { display: grid; gap: 2px; }
+.profile-card .chips { margin-top: 6px; }
+.avatar { flex: none; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 28px; background: var(--primary-container); color: var(--on-primary-container); font-weight: 700; font-size: 20px; }
+.art-row { display: grid; grid-template-columns: 1.3fr 1fr 70px auto; gap: 6px; align-items: center; }
+@media (max-width: 420px) { .art-row { grid-template-columns: 1fr 1fr; } .art-row .years { grid-column: 1; } }

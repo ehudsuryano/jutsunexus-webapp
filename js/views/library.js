@@ -1,6 +1,7 @@
-import { h, icon, iconButton, menu, confirmDialog, toast, fill } from '../dom.js';
+import { h, icon, iconButton, menu, confirmDialog, toast, fill, sheet } from '../dom.js';
+import { getPref, setPref, VIEW_MODES, SORT_OPTIONS } from '../prefs.js';
 import { t, tn } from '../i18n.js';
-import { lib, childGroups, childTechniques, techniquesUnder, mediaOf, deleteGroup, search as searchLibrary, validGroupId } from '../library.js';
+import { lib, childGroups, childTechniques, techniquesUnder, mediaOf, deleteGroup, search as searchLibrary, validGroupId, DIFFICULTIES, byName } from '../library.js';
 import { chrome, $main, nav, routes, groupRow, techniqueRow, tagChips, isIos, isStandalone } from '../ui.js';
 import { openPlayer } from '../player.js';
 import { shareExport } from '../share.js';
@@ -110,18 +111,43 @@ export function renderGroup(groupId) {
         g.notes ? h('p', { class: 'small muted prose', dir: 'auto' }, g.notes) : null)
     : null;
 
+  const sortOption = getPref('sortOption');
+  const viewMode = getPref('viewMode');
   const list = groups.length || techniques.length
-    ? h('div', { class: 'list' }, groups.map(groupRow), techniques.map(techniqueRow))
+    ? h('div', { class: `list view-${viewMode.toLowerCase()}` }, sortItems(groups, sortOption).map(groupRow), sortItems(techniques, sortOption).map(techniqueRow))
     : h('div', { class: 'empty' },
         h('p', {}, t('library.emptyGroup')),
         h('button', { class: 'btn tonal', type: 'button', onclick: () => addMenu(id) }, icon('add', 20), t('library.add')));
 
-  fill($main(), h('div', { class: 'list-top' }, layoutSwitch('LIST', id)), head, list, !g ? installHint() : null);
+  fill($main(), h('div', { class: 'list-top' }, layoutSwitch('LIST', id), h('span', { class: 'spacer' }),
+    iconButton('tune', t('view.options'), () => viewOptions(() => renderGroup(groupId)))), head, list, !g ? installHint() : null);
+}
+
+/** Groups and techniques in the order picked in View options (groups always come first). */
+function sortItems(items, option) {
+  if (option === 'MODIFIED') return [...items].sort((a, b) => (b.modifiedAt || 0) - (a.modifiedAt || 0));
+  if (option === 'CREATED') return [...items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return items; // already by name
+}
+
+function viewOptions(rerender) {
+  let close;
+  const radio = (name, value, label) => h('label', { class: 'check' },
+    h('input', { type: 'radio', name, checked: getPref(name) === value, onchange: () => { setPref(name, value); close(); rerender(); } }),
+    h('span', {}, label));
+  close = sheet(h('div', { class: 'dialog' },
+    h('h2', {}, t('view.options')),
+    h('p', { class: 'form-label' }, t('view.show')),
+    VIEW_MODES.map((v) => radio('viewMode', v, t(`view.${v}`))),
+    h('p', { class: 'form-label', style: { marginTop: '14px' } }, t('view.sortBy')),
+    SORT_OPTIONS.map((v) => radio('sortOption', v, t(`sort.${v}`))),
+    h('div', { class: 'dialog-actions' }, h('button', { class: 'btn tonal', type: 'button', onclick: () => close() }, t('common.close')))));
 }
 
 // --- search ---------------------------------------------------------------------------------------
 
 let lastQuery = '';
+const filters = { favorites: false, difficulty: null };
 
 export function renderSearch() {
   chrome({ title: t('search.title'), tab: 'search' });
@@ -130,16 +156,35 @@ export function renderSearch() {
     type: 'search', class: 'field', placeholder: t('search.placeholder'), value: lastQuery,
     autocomplete: 'off', enterkeyhint: 'search', 'aria-label': t('search.title'),
   });
+  // Filters as in the app's search: favourites only, one difficulty.
+  const favChip = h('button', { class: `pl-chip filter-chip${filters.favorites ? ' on' : ''}`, type: 'button', 'aria-pressed': String(filters.favorites) }, icon('star', 16), t('search.favorites'));
+  const diff = h('select', { class: 'scope-select filter-select', 'aria-label': t('editor.difficulty') },
+    h('option', { value: '' }, t('search.anyDifficulty')),
+    DIFFICULTIES.filter((d) => d !== 'UNSPECIFIED').map((d) => h('option', { value: d, selected: filters.difficulty === d }, t(`difficulty.${d}`))));
+  favChip.addEventListener('click', () => {
+    filters.favorites = !filters.favorites;
+    favChip.classList.toggle('on', filters.favorites);
+    favChip.setAttribute('aria-pressed', String(filters.favorites));
+    run();
+  });
+  diff.addEventListener('change', () => { filters.difficulty = diff.value || null; diff.classList.toggle('on', !!filters.difficulty); run(); });
+  diff.classList.toggle('on', !!filters.difficulty);
   const run = () => {
     lastQuery = input.value;
-    const { groups, techniques } = searchLibrary(lastQuery);
-    if (!lastQuery.trim()) { fill(results); return; }
+    const filtered = filters.favorites || filters.difficulty;
+    const keep = (x) => (!filters.favorites || x.isFavorite) && (!filters.difficulty || x.difficulty === filters.difficulty);
+    let groups = [];
+    let techniques = [];
+    if (lastQuery.trim()) ({ groups, techniques } = searchLibrary(lastQuery));
+    else if (filtered) techniques = [...lib.techniques.values()].sort(byName);
+    if (filtered) { techniques = techniques.filter(keep); groups = []; }
+    if (!lastQuery.trim() && !filtered) { fill(results, h('p', { class: 'empty small' }, t('search.hint'))); return; }
     if (groups.length + techniques.length === 0) { fill(results, h('p', { class: 'empty' }, t('search.none'))); return; }
     fill(results, techniques.map(techniqueRow), groups.map(groupRow));
   };
   input.addEventListener('input', run);
   followTyping(input);
-  fill($main(), h('div', { class: 'search-box' }, icon('search', 20), input), results);
+  fill($main(), h('div', { class: 'search-box' }, icon('search', 20), input), h('div', { class: 'row filters' }, favChip, diff), results);
   run();
   setTimeout(() => input.focus(), 50);
 }

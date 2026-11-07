@@ -4,7 +4,7 @@
  * Routes live in the URL fragment so the static host never sees them:
  *   #/  #/g/<id>  #/t/<id>  #/t/<id>/edit  #/g/<id>/edit  #/new/t/<group|root>  #/new/g/<group|root>
  *   #/import  #/import/<group|root>  #/link/<t1.token>  #/search  #/more
- *   #/graph/<group|all>[/<technique to show>]  #/map/<technique>
+ *   #/graph/<group|all>[/<technique to show>]  #/map/<technique>  #/qr/<technique>  #/youtube/<technique>  #/profile
  * A technique link's own fragment (#t1.…) and ?open=<package link> are accepted on arrival too.
  */
 import { load } from './library.js';
@@ -15,7 +15,8 @@ import { renderGroup, renderSearch } from './views/library.js';
 import { renderTechnique } from './views/technique.js';
 import { renderTechniqueEditor, renderGroupEditor } from './views/editors.js';
 import { renderImport, renderLink, renderAppOnly, setPendingLink } from './views/import.js';
-import { renderMore } from './views/more.js';
+import { renderMore, renderProfile } from './views/more.js';
+import { renderQr, renderYouTube } from './views/sharescreens.js';
 import { renderMap } from './views/map.js';
 import { renderGraph, leaveGraph, libraryLayout, lastGraphScope } from './graph/view.js';
 
@@ -48,6 +49,9 @@ function route() {
     if (a === 'link' && b) return renderLink(b);
     if (a === 'search') return renderSearch();
     if (a === 'more') return renderMore();
+    if (a === 'profile') return renderProfile();
+    if (a === 'qr' && b) return renderQr(b);
+    if (a === 'youtube' && b) return renderYouTube(b);
     return nav('/', { replace: true });
   } catch (e) {
     console.error(e);
