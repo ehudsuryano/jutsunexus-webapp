@@ -5,6 +5,7 @@ import { chrome, $main, nav, routes, groupRow, techniqueRow, tagChips, isIos, is
 import { openPlayer } from '../player.js';
 import { shareExport } from '../share.js';
 import { followTyping } from './editors.js';
+import { layoutSwitch, setLibraryLayout } from '../graph/view.js';
 
 /** Every video under a group (null = whole library), in browsing order, for "Play all". */
 export function videosUnder(groupId) {
@@ -100,6 +101,7 @@ export function renderGroup(groupId) {
   });
 
   if (isEmptyLibrary) { fill($main(), welcome()); return; }
+  setLibraryLayout('LIST');
 
   const head = g && (g.description || (g.tags && g.tags.length) || g.notes)
     ? h('div', { class: 'group-head' },
@@ -114,7 +116,7 @@ export function renderGroup(groupId) {
         h('p', {}, t('library.emptyGroup')),
         h('button', { class: 'btn tonal', type: 'button', onclick: () => addMenu(id) }, icon('add', 20), t('library.add')));
 
-  fill($main(), head, list, !g ? installHint() : null);
+  fill($main(), h('div', { class: 'list-top' }, layoutSwitch('LIST', id)), head, list, !g ? installHint() : null);
 }
 
 // --- search ---------------------------------------------------------------------------------------

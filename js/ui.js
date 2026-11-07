@@ -22,6 +22,9 @@ export function nav(path, { replace = false } = {}) {
   if (replace) {
     stack.pop();
     location.replace(hash);
+  } else if ((location.hash || '#/') === hash) {
+    // Same address (the Library tab shows the list or the graph): render it again anyway.
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
   } else {
     location.hash = hash;
   }

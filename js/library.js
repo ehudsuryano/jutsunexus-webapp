@@ -137,6 +137,15 @@ export function comesFrom(techniqueId) {
   return [...lib.techniques.values()].filter((t) => (t.leadsToIds || []).includes(techniqueId)).sort(byName);
 }
 
+/** Related techniques, whichever side the link was added from (a related link has no direction). */
+export function relatedOf(techniqueId) {
+  const self = lib.techniques.get(techniqueId);
+  const ids = new Set((self && self.relatedIds) || []);
+  for (const o of lib.techniques.values()) if ((o.relatedIds || []).includes(techniqueId)) ids.add(o.id);
+  ids.delete(techniqueId);
+  return [...ids].map((id) => lib.techniques.get(id)).filter(Boolean).sort(byName);
+}
+
 export function leadsTo(technique) {
   return (technique.leadsToIds || []).map((id) => lib.techniques.get(id)).filter(Boolean);
 }

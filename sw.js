@@ -5,11 +5,12 @@
  * Bump VERSION with every release: the new worker caches the new files, and the page offers an
  * "Update" button that swaps it in.
  */
-const VERSION = 'jn-web-1.0.0';
+const VERSION = 'jn-web-1.1.0';
 const FILES = [
   './',
   'index.html',
   'style.css',
+  'graph.css',
   'manifest.webmanifest',
   'logo.png',
   'icons/icon-192.png',
@@ -28,6 +29,9 @@ const FILES = [
   'js/share.js',
   'js/ui.js',
   'js/zip.js',
+  'js/graph/model.js',
+  'js/graph/view.js',
+  'js/views/map.js',
   'js/strings/en.js',
   'js/strings/he.js',
   'js/views/editors.js',

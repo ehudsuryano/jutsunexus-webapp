@@ -2,7 +2,7 @@ import { h, icon, iconButton, toast, pickFiles, fill } from '../dom.js';
 import { t } from '../i18n.js';
 import {
   lib, DIFFICULTIES, CLASSIFICATIONS, newGroup, newTechnique, saveGroup, saveTechnique, setCover,
-  subtreeGroupIds, canMoveGroup, validGroupId, byName,
+  subtreeGroupIds, canMoveGroup, validGroupId, byName, relatedOf, commit,
 } from '../library.js';
 import { chrome, $main, nav, goBack, routes, groupOptions } from '../ui.js';
 import { urlFor, coverFromImage } from '../media.js';
@@ -123,6 +123,7 @@ export function renderTechniqueEditor({ id, inGroup }) {
   const notes = textArea(x.notes, 3);
   const links = linksEditor(x.links);
   const leads = leadsToEditor(x.id, x.leadsToIds);
+  const related = leadsToEditor(x.id, relatedOf(x.id).map((r) => r.id));
   const cover = coverEditor(x.coverKey);
 
   const save = async () => {
@@ -132,8 +133,14 @@ export function renderTechniqueEditor({ id, inGroup }) {
       ...x, name: n, groupId: folder.value || null, difficulty: difficulty.value, classification: classification.value,
       position: position.value.trim(), description: description.value.trim(), steps: splitLines(steps.value),
       tags: splitTags(tags.value), notes: notes.value.trim(), links: links.value(), leadsToIds: leads.value(),
+      relatedIds: related.value(),
     };
-    await saveTechnique(row);
+    // A related link has no direction: un-ticking one also clears it on the other technique.
+    const keep = new Set(row.relatedIds);
+    const others = [...lib.techniques.values()]
+      .filter((o) => o.id !== row.id && (o.relatedIds || []).includes(row.id) && !keep.has(o.id))
+      .map((o) => ({ ...o, relatedIds: o.relatedIds.filter((r) => r !== row.id) }));
+    await commit({ techniques: [{ ...row, modifiedAt: Date.now() }, ...others] });
     const c = cover.result();
     if (c !== undefined) await setCover('technique', row.id, c);
     toast(t('editor.saved'));
@@ -159,6 +166,7 @@ export function renderTechniqueEditor({ id, inGroup }) {
     field(t('technique.notes'), notes),
     h('div', { class: 'form-field' }, h('span', { class: 'form-label' }, t('technique.links')), links.el),
     h('div', { class: 'form-field' }, h('span', { class: 'form-label' }, t('technique.leadsTo')), h('span', { class: 'form-hint' }, t('editor.leadsToHint')), leads.el),
+    h('div', { class: 'form-field' }, h('span', { class: 'form-label' }, t('technique.related')), related.el),
     h('div', { class: 'form-field' }, h('span', { class: 'form-label' }, t('editor.cover')), cover.el),
     h('button', { class: 'btn block', type: 'submit' }, t('common.save'))));
   if (!existing) setTimeout(() => name.focus(), 50);

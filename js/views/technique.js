@@ -2,7 +2,7 @@ import { h, icon, iconButton, menu, confirmDialog, toast, pickFiles, fill } from
 import { t, tn } from '../i18n.js';
 import {
   lib, mediaOf, deleteTechnique, deleteMedia, reorderMedia, setFavorite, setCover, addMediaFiles,
-  leadsTo, comesFrom, validGroupId,
+  leadsTo, comesFrom, relatedOf, validGroupId,
 } from '../library.js';
 import { chrome, $main, nav, routes, techniqueHead, techniqueSections, section, techniqueRow, formatDuration } from '../ui.js';
 import { urlFor, mediaThumbUrl, probe, coverFromImage, firstVideoOf } from '../media.js';
@@ -59,8 +59,13 @@ export function renderTechnique(id) {
 
   const next = leadsTo(x);
   const prev = comesFrom(x.id);
+  const rel = relatedOf(x.id);
   if (next.length) parts.push(section(t('technique.leadsTo'), h('div', { class: 'list' }, next.map(techniqueRow))));
   if (prev.length) parts.push(section(t('technique.comesFrom'), h('div', { class: 'list' }, prev.map(techniqueRow))));
+  if (rel.length) parts.push(section(t('technique.related'), h('div', { class: 'list' }, rel.map(techniqueRow))));
+  parts.push(h('div', { class: 'row section connections' },
+    h('a', { class: 'btn tonal', href: `#/map/${id}` }, icon('map', 18), t('technique.showOnMap')),
+    h('a', { class: 'btn tonal', href: `#/graph/${validGroupId(x.groupId) || 'all'}/${id}` }, icon('graph', 18), t('technique.openInGraph'))));
 
   if (!x.description && !(x.steps || []).length && !x.notes && !(x.links || []).length) {
     parts.push(h('p', { class: 'muted small section' }, t('technique.noText'), ' ',

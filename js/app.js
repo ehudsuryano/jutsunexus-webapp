@@ -4,6 +4,7 @@
  * Routes live in the URL fragment so the static host never sees them:
  *   #/  #/g/<id>  #/t/<id>  #/t/<id>/edit  #/g/<id>/edit  #/new/t/<group|root>  #/new/g/<group|root>
  *   #/import  #/import/<group|root>  #/link/<t1.token>  #/search  #/more
+ *   #/graph/<group|all>[/<technique to show>]  #/map/<technique>
  * A technique link's own fragment (#t1.…) and ?open=<package link> are accepted on arrival too.
  */
 import { load } from './library.js';
@@ -15,6 +16,8 @@ import { renderTechnique } from './views/technique.js';
 import { renderTechniqueEditor, renderGroupEditor } from './views/editors.js';
 import { renderImport, renderLink, renderAppOnly, setPendingLink } from './views/import.js';
 import { renderMore } from './views/more.js';
+import { renderMap } from './views/map.js';
+import { renderGraph, leaveGraph, libraryLayout, lastGraphScope } from './graph/view.js';
 
 function route() {
   const hash = location.hash || '#/';
@@ -26,11 +29,15 @@ function route() {
   if (/^#d1\./.test(hash)) { renderAppOnly('drive'); return; }
 
   trackRoute();
+  leaveGraph();
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   window.scrollTo(0, 0);
   const [a, b, c] = parts;
   try {
-    if (!a) return renderGroup(null);
+    // The Library tab opens the way it was last looked at: list or graph.
+    if (!a) return libraryLayout() === 'GRAPH' ? renderGraph(lastGraphScope() || 'all') : renderGroup(null);
+    if (a === 'graph') return renderGraph(b || 'all', c || null);
+    if (a === 'map' && b) return renderMap(b);
     if (a === 'g' && b && c === 'edit') return renderGroupEditor({ id: b });
     if (a === 'g' && b) return renderGroup(b);
     if (a === 't' && b && c === 'edit') return renderTechniqueEditor({ id: b });
