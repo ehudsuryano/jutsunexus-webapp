@@ -10,6 +10,7 @@ import { driveFileIdFrom, driveSource, DriveError } from '../drive.js';
 import { listSubscriptions, subscribe, checkForUpdate, unsubscribe, sourceLabel, lockedGroupIds } from '../subscriptions.js';
 import { driveErrorText } from './drivescreen.js';
 import { installHint } from './library.js';
+import { scanButton } from '../scan.js';
 
 const urlErrors = () => ({
   notLink: t('import.notLink'), drive: t('import.driveBlocked'), blocked: t('import.blocked'),
@@ -77,7 +78,8 @@ export function renderImport(dest) {
     linkInput, h('button', { class: 'btn', type: 'submit' }, t('import.open')));
 
   // Drag and drop for computers.
-  const drop = h('div', { class: 'dropzone' }, pickBtn, h('p', {}, t('import.pickHint')));
+  const drop = h('div', { class: 'dropzone' }, pickBtn, h('p', {}, t('import.pickHint')),
+    h('div', { class: 'scan-row' }, scanButton((text) => { linkInput.value = text; openLink(text); })));
   const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
   ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { stop(e); drop.classList.add('drag'); }));
   ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { stop(e); drop.classList.remove('drag'); }));

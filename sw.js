@@ -5,7 +5,7 @@
  * Bump VERSION with every release: the new worker caches the new files, and the page offers an
  * "Update" button that swaps it in.
  */
-const VERSION = 'jn-web-1.3.0';
+const VERSION = 'jn-web-1.4.0';
 const FILES = [
   './',
   'index.html',
@@ -19,6 +19,8 @@ const FILES = [
   'icons/apple-touch-icon.png',
   'vendor/pako.min.js',
   'vendor/qrcode.js',
+  'vendor/jsQR.js',
+  'js/scan.js',
   'js/prefs.js',
   'js/addmedia.js',
   'js/config.js',

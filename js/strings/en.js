@@ -430,4 +430,12 @@ export const en = {
   'subs.unsubscribe': 'Unsubscribe',
   'subs.unsubscribeTitle': 'Unsubscribe from “{name}”?',
   'subs.unsubscribeBody': 'The syllabus and its media are removed from this device. You can subscribe to the same link again later.',
+
+  'scan.button': 'Scan a QR code',
+  'scan.title': 'Scan a QR code',
+  'scan.starting': 'Starting the camera…',
+  'scan.aim': 'Point the camera at a JutsuNexus QR code.',
+  'scan.denied': 'JutsuNexus isn’t allowed to use the camera. Allow it in the browser’s site settings and try again.',
+  'scan.noCamera': 'No camera could be opened on this device.',
+  'scan.noDecoder': 'The QR reader couldn’t load. Check the connection and try again.',
 };

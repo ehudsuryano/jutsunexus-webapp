@@ -437,4 +437,12 @@ export const he = {
   'subs.unsubscribe': 'ביטול ההרשמה',
   'subs.unsubscribeTitle': 'לבטל את ההרשמה ל"{name}"?',
   'subs.unsubscribeBody': 'תוכנית הלימוד והמדיה שלה יוסרו מהמכשיר הזה. אפשר להירשם שוב לאותו קישור בהמשך.',
+
+  'scan.button': 'סריקת קוד QR',
+  'scan.title': 'סריקת קוד QR',
+  'scan.starting': 'מפעילים את המצלמה…',
+  'scan.aim': 'כוונו את המצלמה לקוד QR של JutsuNexus.',
+  'scan.denied': 'ל-JutsuNexus אין הרשאה להשתמש במצלמה. אפשרו אותה בהגדרות האתר בדפדפן ונסו שוב.',
+  'scan.noCamera': 'לא ניתן לפתוח מצלמה במכשיר הזה.',
+  'scan.noDecoder': 'קורא ה-QR לא נטען. בדקו את החיבור ונסו שוב.',
 };
