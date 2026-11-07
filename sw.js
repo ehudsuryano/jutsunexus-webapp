@@ -5,7 +5,7 @@
  * Bump VERSION with every release: the new worker caches the new files, and the page offers an
  * "Update" button that swaps it in.
  */
-const VERSION = 'jn-web-1.1.2';
+const VERSION = 'jn-web-1.2.0';
 const FILES = [
   './',
   'index.html',
@@ -21,6 +21,9 @@ const FILES = [
   'vendor/qrcode.js',
   'js/prefs.js',
   'js/addmedia.js',
+  'js/config.js',
+  'js/drive.js',
+  'js/views/drivescreen.js',
   'js/views/sharescreens.js',
   'js/app.js',
   'js/db.js',
@@ -65,7 +68,7 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return; // package links go straight to the network
+  if (url.origin !== self.location.origin) return; // package links and Google go straight to the network
   event.respondWith((async () => {
     const cache = await caches.open(VERSION);
     // Any page navigation (?open=… included) is the one-page app.

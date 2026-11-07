@@ -33,6 +33,7 @@ function groupMenu(g) {
   menu(g.name, [
     { label: t('common.edit'), icon: 'edit', onSelect: () => nav(`/g/${g.id}/edit`) },
     { label: t('library.playAll'), icon: 'play', onSelect: () => playAll(g.id) },
+    { label: t('drive.menu'), icon: 'drive', onSelect: () => nav(`/drive/group/${g.id}`) },
     { label: t('share.packageMedia'), icon: 'share', onSelect: () => shareExport({ kind: 'group', id: g.id }, true) },
     { label: t('share.packageText'), icon: 'share', onSelect: () => shareExport({ kind: 'group', id: g.id }, false) },
     {
@@ -58,6 +59,7 @@ function rootMenu() {
   menu(t('library.title'), [
     { label: t('library.playAll'), icon: 'play', onSelect: () => playAll(null) },
     { label: t('more.backup'), icon: 'download', onSelect: () => shareExport({ kind: 'library' }, true) },
+    { label: t('drive.menuLibrary'), icon: 'drive', onSelect: () => nav('/drive/library') },
   ]);
 }
 

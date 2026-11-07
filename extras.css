@@ -58,3 +58,8 @@
 .pending-tile .doc { display: grid; place-items: center; height: 100%; color: var(--on-surface-variant); }
 .pending-name { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 6px; background: rgba(0,0,0,.6); color: #fff; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .icon-btn.pending-remove { position: absolute; top: 2px; right: 2px; width: 32px; height: 32px; background: rgba(0,0,0,.6); color: #fff; }
+
+/* Send by Drive link */
+.drive-link { margin-top: 10px; font-size: 14px; }
+.drive-qr { display: block; width: min(220px, 60vw); margin: 14px auto 4px; }
+.drive-account { text-align: center; margin-top: 16px; }

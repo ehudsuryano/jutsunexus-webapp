@@ -34,6 +34,25 @@ async function copyText(text, done) {
 
 // --- QR ------------------------------------------------------------------------------------------
 
+/** A PNG data URL of a QR code for `text`, or null when it is too long for one. */
+export function qrDataUrl(text) {
+  if (!globalThis.qrcode || text.length > QR_MAX_LENGTH) return null;
+  const code = globalThis.qrcode(0, text.length <= QR_COMFORTABLE_LENGTH ? 'M' : 'L');
+  code.addData(text, 'Byte');
+  code.make();
+  const n = code.getModuleCount();
+  const cell = Math.max(2, Math.floor(QR_TARGET_PX / (n + 8)));
+  const canvas = document.createElement('canvas');
+  const margin = cell * 4;
+  canvas.width = canvas.height = n * cell + margin * 2;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#000';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (code.isDark(r, c)) ctx.fillRect(margin + c * cell, margin + r * cell, cell, cell);
+  return canvas.toDataURL('image/png');
+}
+
 export function renderQr(id) {
   const x = lib.techniques.get(id);
   chrome({ title: t('qr.title'), back: routes.technique(id), tab: 'library' });

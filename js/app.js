@@ -17,6 +17,7 @@ import { renderTechniqueEditor, renderGroupEditor } from './views/editors.js';
 import { renderImport, renderLink, renderAppOnly, setPendingLink } from './views/import.js';
 import { renderMore, renderProfile } from './views/more.js';
 import { renderQr, renderYouTube } from './views/sharescreens.js';
+import { renderDrive } from './views/drivescreen.js';
 import { renderMap } from './views/map.js';
 import { renderGraph, leaveGraph, libraryLayout, lastGraphScope } from './graph/view.js';
 
@@ -27,7 +28,7 @@ function route() {
   const token = /^#(t1\.[A-Za-z0-9_-]+)/.exec(hash);
   if (token) { nav(`/link/${token[1]}`, { replace: true }); return; }
   if (/^#s1\./.test(hash)) { renderAppOnly('send'); return; }
-  if (/^#d1\./.test(hash)) { renderAppOnly('drive'); return; }
+  if (/^#d1\./.test(hash)) { setPendingLink(location.href); nav('/import', { replace: true }); return; }
 
   trackRoute();
   leaveGraph();
@@ -51,6 +52,7 @@ function route() {
     if (a === 'more') return renderMore();
     if (a === 'profile') return renderProfile();
     if (a === 'qr' && b) return renderQr(b);
+    if (a === 'drive' && b) return renderDrive(b, c || null);
     if (a === 'youtube' && b) return renderYouTube(b);
     return nav('/', { replace: true });
   } catch (e) {

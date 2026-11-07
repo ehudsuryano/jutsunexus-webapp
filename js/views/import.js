@@ -2,10 +2,12 @@ import { h, icon, toast, pickFiles, fill } from '../dom.js';
 import { t, tn, lang } from '../i18n.js';
 import { uuid, newTechnique, childGroups, childTechniques, commit, validGroupId } from '../library.js';
 import { chrome, $main, nav, routes, groupOptions, techniqueHead, techniqueSections, formatBytes, isIos } from '../ui.js';
-import { fileSource, urlSource, resolveDownloadUrl, isDriveDownload } from '../zip.js';
+import { fileSource, urlSource, resolveDownloadUrl } from '../zip.js';
 import { readPackage, importPackage } from '../packages.js';
-import { extractTechniqueToken, decodeTechniqueToken, isDirectSendLink, driveLinkFileId, ANDROID_APP_URL } from '../links.js';
+import { extractTechniqueToken, decodeTechniqueToken, isDirectSendLink, ANDROID_APP_URL } from '../links.js';
 import { isQuotaError } from '../db.js';
+import { driveFileIdFrom, driveSource, DriveError } from '../drive.js';
+import { driveErrorText } from './drivescreen.js';
 import { installHint } from './library.js';
 
 const urlErrors = () => ({
@@ -33,6 +35,18 @@ export function renderImport(dest) {
       showError((e && e.message) || String(e));
     }
   };
+  const openDrive = async (fileId) => {
+    fill(status, h('p', { class: 'loading' }, t('import.openingDrive')));
+    try {
+      const pkg = await readPackage(await driveSource(fileId));
+      preview(pkg, destination, status);
+    } catch (e) {
+      // If Drive itself won't hand it over, the download-then-pick route still works.
+      if (e instanceof DriveError && e.code !== 'notPublic' && e.code !== 'gone') {
+        driveHelp(status, `https://drive.google.com/file/d/${fileId}/view`, driveErrorText(e));
+      } else showError(e instanceof DriveError ? driveErrorText(e) : ((e && e.message) || String(e)));
+    }
+  };
 
   const pickBtn = h('button', {
     class: 'btn block', type: 'button',
@@ -51,10 +65,10 @@ export function renderImport(dest) {
     const token = extractTechniqueToken(v);
     if (token) { nav(`/link/${token}`); return; }
     if (isDirectSendLink(v)) { showError(t('import.directSend')); return; }
-    const driveId = driveLinkFileId(v);
-    if (driveId) { driveHelp(status, `https://drive.google.com/file/d/${driveId}/view`); return; }
+    // Drive links (#d1. from the app, or a plain Drive share link) are read through the Drive API.
+    const driveId = driveFileIdFrom(v);
+    if (driveId) { openDrive(driveId); return; }
     const resolved = resolveDownloadUrl(v);
-    if (resolved && isDriveDownload(resolved)) { driveHelp(status, v); return; }
     open(urlSource(v, urlErrors()), resolved || v);
   };
   const linkForm = h('form', { class: 'link-row', onsubmit: (e) => { e.preventDefault(); openLink(linkInput.value); } },
@@ -87,9 +101,10 @@ export function renderImport(dest) {
   }
 }
 
-function driveHelp(status, link) {
+function driveHelp(status, link, reason) {
   fill(status, h('div', { class: 'card hint' },
     h('h2', {}, t('import.driveTitle')),
+    reason ? h('p', { class: 'small warn' }, reason) : null,
     h('ol', {}, h('li', {}, t('import.drive1')), h('li', {}, t('import.drive2')), h('li', {}, t('import.drive3'))),
     h('a', { class: 'btn block', href: link, target: '_blank', rel: 'noopener' }, t('import.openDrive'))));
 }

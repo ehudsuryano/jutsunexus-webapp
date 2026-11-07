@@ -1,0 +1,4 @@
+# Google Cloud downloads and notes with keys or secrets never go into this public repo.
+client_secret_*.json
+*api key*
+*.secret

@@ -180,6 +180,7 @@ function techniqueMenu(x) {
       label: t('library.playAll'), icon: 'play',
       onSelect: () => openPlayer(mediaOf(x.id).filter((m) => m.type === 'VIDEO').map((m) => ({ media: m, title: x.name })), 0, { playlist: true }),
     } : null,
+    { label: t('drive.menu'), icon: 'drive', onSelect: () => nav(`/drive/technique/${x.id}`) },
     { label: t('qr.menu'), icon: 'qr', onSelect: () => nav(`/qr/${x.id}`) },
     hasVideo ? { label: t('yt.title'), icon: 'youtube', onSelect: () => nav(`/youtube/${x.id}`) } : null,
     { label: t('share.packageMedia'), icon: 'share', onSelect: () => shareExport({ kind: 'technique', id: x.id }, true) },
