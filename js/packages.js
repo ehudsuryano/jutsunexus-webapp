@@ -12,7 +12,7 @@ import { openZip, entryBlob, buildZip, textBlob, ZipError, ZipTooBigError } from
 
 export const PACKAGE_FORMAT_VERSION = 1;
 export const APP_NAME = 'JutsuNexus';
-export const APP_VERSION = '1.2.0-web';
+export const APP_VERSION = '1.2.1-web';
 
 async function readJson(source, entries, name) {
   const entry = entries.get(name);

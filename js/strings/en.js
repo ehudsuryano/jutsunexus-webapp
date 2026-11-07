@@ -397,7 +397,7 @@ export const en = {
   'drive.err.noAccess': 'JutsuNexus needs access to Google Drive for this. Tap the button again and tick the Drive box on Google’s screen.',
   'drive.err.cancelled': 'Cancelled.',
   'drive.err.popup': 'Google’s sign-in window didn’t open. Allow pop-ups for this site and try again.',
-  'drive.err.busy': 'Google Drive is busy right now. Try again in a minute.',
+  'drive.err.busy': 'Google Drive isn’t letting this download through right now — it limits how often a file can be downloaded. Try again later, or use the steps below.',
   'drive.err.signedOut': 'Signed out of Google. Tap the button again to sign in.',
   'drive.err.failed': 'Google Drive answered with an error ({detail}). Try again.',
   'import.openingDrive': 'Opening from Google Drive…',

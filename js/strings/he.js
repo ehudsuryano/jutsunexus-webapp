@@ -404,7 +404,7 @@ export const he = {
   'drive.err.noAccess': 'לשם כך JutsuNexus צריך גישה ל-Google Drive. לחצו שוב על הכפתור וסמנו את התיבה של Drive במסך של Google.',
   'drive.err.cancelled': 'בוטל.',
   'drive.err.popup': 'חלון הכניסה של Google לא נפתח. אפשרו חלונות קופצים לאתר הזה ונסו שוב.',
-  'drive.err.busy': 'ה-Google Drive עמוס כרגע. נסו שוב בעוד דקה.',
+  'drive.err.busy': 'Google Drive לא מאפשר כרגע להוריד את הקובץ – יש לו מגבלה על מספר ההורדות. נסו שוב מאוחר יותר, או השתמשו בשלבים שלמטה.',
   'drive.err.signedOut': 'יצאתם מחשבון Google. לחצו שוב על הכפתור כדי להיכנס.',
   'drive.err.failed': 'ה-Google Drive החזיר שגיאה ({detail}). נסו שוב.',
   'import.openingDrive': 'פותחים מ-Google Drive…',

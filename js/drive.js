@@ -81,8 +81,15 @@ export async function driveSource(fileId) {
   const meta = await driveMeta(fileId);
   const url = `${API}/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true&key=${GOOGLE_API_KEY}`;
   const read = async (start, end) => {
-    const r = await publicFetch(url, { headers: { Range: `bytes=${start}-${end - 1}` } });
-    return new Uint8Array(await r.arrayBuffer());
+    try {
+      const r = await publicFetch(url, { headers: { Range: `bytes=${start}-${end - 1}` } });
+      return new Uint8Array(await r.arrayBuffer());
+    } catch (e) {
+      // Google answered for the file a moment ago, so this is Drive refusing the download (its
+      // download limits, or its "automated queries" block), not a missing connection or file.
+      if (e instanceof DriveError && (e.code === 'offline' || e.code === 'notPublic')) throw new DriveError('busy');
+      throw e;
+    }
   };
   const tailLen = Math.min(meta.size, 22 + 65535);
   const tail = await read(meta.size - tailLen, meta.size);
