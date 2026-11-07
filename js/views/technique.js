@@ -10,6 +10,8 @@ import { getBlob } from '../db.js';
 import { openPlayer } from '../player.js';
 import { shareExport } from '../share.js';
 import { pickMedia, storePicked, ADD_KINDS } from '../addmedia.js';
+import { lockOfTechnique } from '../subscriptions.js';
+import { syllabusBanner } from '../ui.js';
 
 /** Arrange mode is per technique and survives the re-render after each change. */
 let arranging = null;
@@ -20,6 +22,8 @@ export function renderTechnique(id) {
   if (arranging !== id) arranging = null;
   const media = mediaOf(id);
   const rerender = () => renderTechnique(id);
+  const locked = lockOfTechnique(id);
+  if (locked) arranging = null;
 
   const favBtn = iconButton(x.isFavorite ? 'star' : 'starOutline', x.isFavorite ? t('technique.unfavorite') : t('technique.favorite'), async () => {
     await setFavorite(id, !x.isFavorite);
@@ -33,8 +37,8 @@ export function renderTechnique(id) {
     crumbs: validGroupId(x.groupId),
     crumbLeaf: x.name,
     actions: [
-      favBtn,
-      iconButton('edit', t('common.edit'), () => nav(`/t/${id}/edit`)),
+      locked ? null : favBtn,
+      locked ? null : iconButton('edit', t('common.edit'), () => nav(`/t/${id}/edit`)),
       iconButton('more', t('common.more'), () => techniqueMenu(x)),
     ],
   });
@@ -42,10 +46,10 @@ export function renderTechnique(id) {
   const items = media.map((m) => ({ media: m, title: x.name }));
   const openAt = (m) => openPlayer(items, media.indexOf(m));
 
-  const parts = [hero(x, openAt), techniqueHead(x)];
+  const parts = [locked ? syllabusBanner(locked) : null, hero(x, openAt), techniqueHead(x)];
 
   // Media
-  const arrangeBtn = media.length > 1 || (arranging && media.length)
+  const arrangeBtn = !locked && (media.length > 1 || (arranging && media.length))
     ? h('button', { class: `text-btn${arranging ? ' on' : ''}`, type: 'button', onclick: () => { arranging = arranging ? null : id; rerender(); } },
         arranging ? t('media.done') : t('media.arrange'))
     : null;
@@ -62,7 +66,8 @@ export function renderTechnique(id) {
   const ytBtn = media.some((m) => m.type === 'VIDEO')
     ? h('a', { class: 'text-btn yt-link', href: `#/youtube/${id}` }, icon('youtube', 18), t('yt.title'))
     : null;
-  parts.push(h('section', { class: 'section' }, head, addRow, ytBtn, grid));
+  parts.push(h('section', { class: 'section' }, head, locked ? null : addRow, ytBtn, grid,
+    locked && !media.length ? h('p', { class: 'small muted' }, t('subs.noMedia')) : null));
 
   parts.push(...techniqueSections(x));
 
@@ -76,7 +81,7 @@ export function renderTechnique(id) {
     h('a', { class: 'btn tonal', href: `#/map/${id}` }, icon('map', 18), t('technique.showOnMap')),
     h('a', { class: 'btn tonal', href: `#/graph/${validGroupId(x.groupId) || 'all'}/${id}` }, icon('graph', 18), t('technique.openInGraph'))));
 
-  if (!x.description && !(x.steps || []).length && !x.notes && !(x.links || []).length) {
+  if (!locked && !x.description && !(x.steps || []).length && !x.notes && !(x.links || []).length) {
     parts.push(h('p', { class: 'muted small section' }, t('technique.noText'), ' ',
       h('a', { href: `#/t/${id}/edit` }, t('technique.addText'))));
   }
@@ -185,8 +190,8 @@ function techniqueMenu(x) {
     hasVideo ? { label: t('yt.title'), icon: 'youtube', onSelect: () => nav(`/youtube/${x.id}`) } : null,
     { label: t('share.packageMedia'), icon: 'share', onSelect: () => shareExport({ kind: 'technique', id: x.id }, true) },
     { label: t('share.packageText'), icon: 'share', onSelect: () => shareExport({ kind: 'technique', id: x.id }, false) },
-    x.coverKey ? { label: t('media.removeCover'), icon: 'image', onSelect: async () => { await setCover('technique', x.id, null); renderTechnique(x.id); } } : null,
-    {
+    x.coverKey && !lockOfTechnique(x.id) ? { label: t('media.removeCover'), icon: 'image', onSelect: async () => { await setCover('technique', x.id, null); renderTechnique(x.id); } } : null,
+    lockOfTechnique(x.id) ? null : {
       label: t('common.delete'), icon: 'trash', danger: true,
       onSelect: async () => {
         const n = mediaOf(x.id).length;

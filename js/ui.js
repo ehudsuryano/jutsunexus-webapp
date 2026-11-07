@@ -3,6 +3,7 @@ import { h, icon, iconButton } from './dom.js';
 import { t, tn, ltr, isRtl } from './i18n.js';
 import { lib, ancestry, childGroups, countTechniquesUnder, mediaOf } from './library.js';
 import { urlFor, techniqueThumb, thumbNode } from './media.js';
+import { subscriptionOfGroup, lockOfGroup, lockedGroupIds, sourceLabel } from './subscriptions.js';
 
 export const $main = () => document.getElementById('main');
 
@@ -79,8 +80,8 @@ export function chrome({ title, back = null, actions = [], tab = null, crumbs, c
 
 // --- rows -----------------------------------------------------------------------------------------
 
-export function thumbBox(kind, loadUrl, extra) {
-  const box = h('span', { class: `thumb ${kind}` }, icon(kind === 'group' ? 'folder' : 'technique', 28), extra);
+export function thumbBox(kind, loadUrl, extra, iconName) {
+  const box = h('span', { class: `thumb ${kind}` }, icon(iconName || (kind === 'group' ? 'folder' : 'technique'), 28), extra);
   if (loadUrl) {
     loadUrl().then((res) => {
       const node = typeof res === 'string' ? h('img', { src: res, alt: '', loading: 'lazy', decoding: 'async' }) : thumbNode(res);
@@ -94,7 +95,7 @@ export function groupRow(g) {
   const sub = childGroups(g.id).length;
   const tech = countTechniquesUnder(g.id);
   return h('a', { class: 'item', href: `#${routes.group(g.id)}` },
-    thumbBox('group', g.coverKey ? () => urlFor(g.coverKey) : null),
+    thumbBox('group', g.coverKey ? () => urlFor(g.coverKey) : null, null, subscriptionOfGroup(g.id) ? 'school' : null),
     h('span', { class: 'item-body' },
       h('span', { class: 'item-title', dir: 'auto' }, g.name),
       h('span', { class: 'item-meta' }, [sub > 0 ? tn('count.groups', sub) : null, tn('count.techniques', tech)].filter(Boolean).join(' • '))));
@@ -210,7 +211,15 @@ export function isStandalone() {
 }
 
 /** Group <option>s indented by depth, for "Folder" pickers. `exclude` = ids that can't be picked. */
+/** "Syllabus from … — read-only" above a subscribed group or technique. */
+export function syllabusBanner(sub) {
+  return h('div', { class: 'card hint syllabus-banner' }, icon('school', 22),
+    h('p', {}, t('subs.banner', { source: sourceLabel(sub.url) }), ' ', h('a', { href: '#/import' }, t('subs.checkLink'))));
+}
+
+/** Group <option>s for "put it in" pickers: never inside a syllabus (an update would wipe it). */
 export function groupOptions(selectedId, exclude = new Set()) {
+  for (const id of lockedGroupIds()) if (id !== selectedId) exclude.add(id);
   const opts = [h('option', { value: '', selected: selectedId == null }, t('library.title'))];
   const walk = (parentId, depth) => {
     for (const g of childGroups(parentId)) {

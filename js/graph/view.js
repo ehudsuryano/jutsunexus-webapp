@@ -14,6 +14,7 @@ import { techniqueThumb, thumbNode } from '../media.js';
 import { chrome, $main, nav, routes } from '../ui.js';
 import { openPlayer } from '../player.js';
 import { addMenu } from '../views/library.js';
+import { lockOfGroup, lockOfTechnique, subscriptionOfGroup } from '../subscriptions.js';
 import {
   buildLibraryGraph, resolvePositions, nodeSize, graphBounds, curvePath, arrowPath,
   TECH_THUMB_H,
@@ -95,9 +96,10 @@ export async function renderGraph(scopeArg, focusId) {
   // + adds into the group being looked at: the selected group, the selected technique's group, or the scope.
   const addTarget = () => {
     const sel = state.selectedId && state.graph ? state.graph.byId.get(state.selectedId) : null;
-    if (sel && sel.kind === 'group') return sel.id;
-    if (sel && sel.kind === 'technique') return validGroupId(sel.technique.groupId);
-    return state.scopeId;
+    let target = state.scopeId;
+    if (sel && sel.kind === 'group') target = sel.id;
+    else if (sel && sel.kind === 'technique') target = validGroupId(sel.technique.groupId);
+    return target && lockOfGroup(target) ? null : target;
   };
   chrome({ title: t('library.title'), tab: 'library', actions: [iconButton('add', t('library.add'), () => addMenu(addTarget()))] });
   document.body.classList.add('graph-mode');
@@ -289,7 +291,7 @@ export async function renderGraph(scopeArg, focusId) {
   function groupPill(node) {
     const isRoot = node.parentId == null;
     return h('div', { class: `g-node g-group${isRoot ? ' g-root' : ''}` },
-      h('span', { class: 'g-pill' }, icon(node.kind === 'root' ? 'home' : 'folder', isRoot ? 22 : 18), h('span', { class: 'g-pill-name', dir: 'auto' }, node.name)));
+      h('span', { class: 'g-pill' }, icon(node.kind === 'root' ? 'home' : subscriptionOfGroup(node.id) ? 'school' : 'folder', isRoot ? 22 : 18), h('span', { class: 'g-pill-name', dir: 'auto' }, node.name)));
   }
 
   function markSelection() {
@@ -709,6 +711,8 @@ export async function renderGraph(scopeArg, focusId) {
     const bLeadsA = (b.leadsToIds || []).includes(a.id);
     const related = (a.relatedIds || []).includes(b.id) || (b.relatedIds || []).includes(a.id);
     const linked = aLeadsB || bLeadsA || related;
+    const aLocked = !!lockOfTechnique(a.id);
+    const bLocked = !!lockOfTechnique(b.id);
     let close;
     const done = () => { close(); state.linkFrom = null; rebuild(); markSelection(); };
     const save = async (rows) => {
@@ -724,13 +728,15 @@ export async function renderGraph(scopeArg, focusId) {
       h('h2', {}, t('graph.linkTechniques')),
       h('p', {}, current),
       h('div', { class: 'menu' },
-        option(pair(a.name, b.name), 'down', () => save([{ ...a, leadsToIds: [...(a.leadsToIds || []), b.id] }]), aLeadsB),
-        option(pair(b.name, a.name), 'up', () => save([{ ...b, leadsToIds: [...(b.leadsToIds || []), a.id] }]), bLeadsA),
-        option(t('graph.related'), 'related', () => save([{ ...a, relatedIds: [...(a.relatedIds || []), b.id] }]), related || aLeadsB || bLeadsA),
+        option(pair(a.name, b.name), 'down', () => save([{ ...a, leadsToIds: [...(a.leadsToIds || []), b.id] }]), aLeadsB || aLocked),
+        option(pair(b.name, a.name), 'up', () => save([{ ...b, leadsToIds: [...(b.leadsToIds || []), a.id] }]), bLeadsA || bLocked),
+        // Related has no direction: written on whichever side isn't read-only.
+        option(t('graph.related'), 'related', () => save([aLocked ? { ...b, relatedIds: [...(b.relatedIds || []), a.id] } : { ...a, relatedIds: [...(a.relatedIds || []), b.id] }]), related || aLeadsB || bLeadsA || (aLocked && bLocked)),
         linked ? option(t('graph.removeLink'), 'linkOff', () => save([
-          { ...a, leadsToIds: (a.leadsToIds || []).filter((x) => x !== b.id), relatedIds: (a.relatedIds || []).filter((x) => x !== b.id) },
-          { ...b, leadsToIds: (b.leadsToIds || []).filter((x) => x !== a.id), relatedIds: (b.relatedIds || []).filter((x) => x !== a.id) },
-        ]), false) : null),
+          aLocked ? null : { ...a, leadsToIds: (a.leadsToIds || []).filter((x) => x !== b.id), relatedIds: (a.relatedIds || []).filter((x) => x !== b.id) },
+          bLocked ? null : { ...b, leadsToIds: (b.leadsToIds || []).filter((x) => x !== a.id), relatedIds: (b.relatedIds || []).filter((x) => x !== a.id) },
+        ].filter(Boolean)), aLocked && bLocked) : null),
+        aLocked || bLocked ? h('p', { class: 'small muted' }, t('subs.lockedNote')) : null,
       h('div', { class: 'dialog-actions' }, h('button', { class: 'btn tonal', type: 'button', onclick: () => close() }, t('common.cancel')))));
   }
 

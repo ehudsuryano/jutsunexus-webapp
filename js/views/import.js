@@ -1,12 +1,13 @@
-import { h, icon, toast, pickFiles, fill } from '../dom.js';
+import { h, icon, toast, pickFiles, fill, confirmDialog } from '../dom.js';
 import { t, tn, lang } from '../i18n.js';
-import { uuid, newTechnique, childGroups, childTechniques, commit, validGroupId } from '../library.js';
+import { lib, uuid, newTechnique, childGroups, childTechniques, commit, validGroupId } from '../library.js';
 import { chrome, $main, nav, routes, groupOptions, techniqueHead, techniqueSections, formatBytes, isIos } from '../ui.js';
 import { fileSource, urlSource, resolveDownloadUrl } from '../zip.js';
 import { readPackage, importPackage } from '../packages.js';
 import { extractTechniqueToken, decodeTechniqueToken, isDirectSendLink, ANDROID_APP_URL } from '../links.js';
 import { isQuotaError } from '../db.js';
 import { driveFileIdFrom, driveSource, DriveError } from '../drive.js';
+import { listSubscriptions, subscribe, checkForUpdate, unsubscribe, sourceLabel, lockedGroupIds } from '../subscriptions.js';
 import { driveErrorText } from './drivescreen.js';
 import { installHint } from './library.js';
 
@@ -20,7 +21,8 @@ let pendingLink = null;
 export function setPendingLink(link) { pendingLink = link; }
 
 export function renderImport(dest) {
-  const destination = dest && dest !== 'root' ? validGroupId(dest) : null;
+  let destination = dest && dest !== 'root' ? validGroupId(dest) : null;
+  if (destination && lockedGroupIds().has(destination)) destination = null;
   chrome({ title: t('import.title'), tab: 'import', back: dest ? routes.group(destination) : null });
 
   const status = h('div');
@@ -88,6 +90,7 @@ export function renderImport(dest) {
     status,
     drop,
     h('div', { class: 'card' }, h('h2', {}, t('import.linkTitle')), h('p', {}, t('import.linkBody')), linkForm),
+    subscriptionsCard(),
     isIos() ? h('div', { class: 'card' },
       h('h2', {}, t('import.iosTitle')),
       h('ol', {}, h('li', {}, t('import.ios1')), h('li', {}, t('import.ios2')), h('li', {}, t('import.ios3')), h('li', {}, t('import.ios4')))) : null,
@@ -121,7 +124,8 @@ function preview(pkg, destination, status) {
     pkg.media.length ? `${tn('count.mediaFiles', pkg.media.length)} (${formatBytes(pkg.mediaBytes)})` : null,
   ].filter(Boolean).join(' • ');
 
-  const go = h('button', { class: 'btn block', type: 'button' }, t('import.importNow'));
+  const link = pkg.source.link || null; // only a package behind a link can be followed for updates
+  const go = h('button', { class: 'btn block', type: 'button' }, link ? t('subs.importOnce') : t('import.importNow'));
   go.addEventListener('click', async () => {
     go.disabled = true;
     dest.disabled = true;
@@ -158,8 +162,107 @@ function preview(pkg, destination, status) {
     m.exportedAt ? h('p', { class: 'small muted' }, t('import.exportedOn', { date: new Date(m.exportedAt).toLocaleDateString(lang) })) : null,
     m.includesMedia === false ? h('p', { class: 'small muted' }, t('import.noMedia')) : null,
     h('label', { class: 'form-field' }, h('span', { class: 'form-label' }, t('import.into')), dest),
-    go, bar, progressText));
+    go, bar, progressText,
+    link ? subscribeBox(pkg, link, title, [go, dest]) : null));
   estimateWarning(pkg.mediaBytes).then((w) => { if (w) status.firstChild.append(h('p', { class: 'small warn' }, w)); });
+}
+
+/** "Subscribe to this syllabus": a read-only group that follows the link's updates. */
+function subscribeBox(pkg, link, title, others) {
+  const name = h('input', { class: 'field', type: 'text', value: pkg.rootName || title, dir: 'auto', maxlength: 120, placeholder: t('subs.namePlaceholder') });
+  const bar = h('progress', { max: 1, value: 0, hidden: true });
+  const msg = h('p', { class: 'small muted', hidden: true });
+  const btn = h('button', { class: 'btn tonal block', type: 'button' }, icon('school', 20), t('subs.subscribe'));
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    for (const o of others) o.disabled = true;
+    bar.hidden = false;
+    msg.hidden = false;
+    msg.textContent = t('subs.subscribing');
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch { /* optional */ }
+    try {
+      const { rootGroupId, result } = await subscribe(pkg, link, name.value, (done, total) => {
+        bar.max = Math.max(1, total);
+        bar.value = done;
+        msg.textContent = t('import.savingFiles', { done, total });
+      });
+      toast(t('subs.subscribedTo', { name: name.value.trim() || t('subs.defaultName') }) + ' — ' + t('import.done', { techniques: result.techniques, media: result.media }), 5000);
+      nav(routes.group(rootGroupId), { replace: true });
+    } catch (e) {
+      btn.disabled = false;
+      for (const o of others) o.disabled = false;
+      bar.hidden = true;
+      msg.textContent = isQuotaError(e) ? t('import.noSpace') : (e instanceof DriveError ? driveErrorText(e) : ((e && e.message) || String(e)));
+      msg.className = 'small warn';
+    }
+  });
+  return h('div', { class: 'subscribe-box' },
+    h('h3', {}, t('subs.subscribeTitle')),
+    h('p', { class: 'small muted' }, t('subs.from', { source: sourceLabel(link) })),
+    h('label', { class: 'form-field' }, h('span', { class: 'form-label' }, t('subs.nameInLibrary')), name),
+    h('p', { class: 'small muted' }, t('subs.subscribeHint')),
+    btn, bar, msg);
+}
+
+/** The "Subscribed syllabi" card: each with Check for updates and Unsubscribe; Check all. */
+function subscriptionsCard() {
+  const box = h('div', { class: 'card subs-card' });
+  const draw = () => {
+    const subs = listSubscriptions();
+    if (!subs.length) {
+      fill(box, h('h2', {}, t('subs.title')), h('p', {}, t('subs.none')), h('p', { class: 'small' }, t('subs.noneCaption')));
+      return;
+    }
+    const checkOne = async (sub, row) => {
+      const status = row.querySelector('.sub-status');
+      const btns = row.querySelectorAll('button');
+      btns.forEach((b) => { b.disabled = true; });
+      status.className = 'sub-status small muted';
+      status.textContent = t('subs.checking');
+      const name = lib.groups.get(sub.rootGroupId)?.name || '';
+      try {
+        const r = await checkForUpdate(sub, (done, total) => { status.textContent = t('import.savingFiles', { done, total }); });
+        toast(r.status === 'UP_TO_DATE' ? t('subs.upToDate', { name }) : t('subs.updated', { name }) + ' — ' + t('import.done', { techniques: r.result.techniques, media: r.result.media }), 4000);
+        draw();
+      } catch (e) {
+        btns.forEach((b) => { b.disabled = false; });
+        status.className = 'sub-status small warn';
+        status.textContent = `${t('subs.updateFailed')}: ${e instanceof DriveError ? driveErrorText(e) : ((e && e.message) || String(e))}`;
+      }
+    };
+    const rows = subs.map((sub) => {
+      const g = lib.groups.get(sub.rootGroupId);
+      const row = h('div', { class: 'sub-row' },
+        h('a', { class: 'sub-name', href: `#${routes.group(sub.rootGroupId)}`, dir: 'auto' }, icon('school', 20), g ? g.name : '?'),
+        h('p', { class: 'small muted' }, t('subs.meta', {
+          source: sourceLabel(sub.url),
+          date: sub.packageExportedAt ? new Date(sub.packageExportedAt).toLocaleDateString(lang) : '—',
+          when: new Date(sub.lastCheckedAt).toLocaleString(lang),
+        })),
+        h('p', { class: 'sub-status small muted' }),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn small-btn', type: 'button', onclick: () => checkOne(sub, row) }, icon('reset', 18), t('subs.check')),
+          h('button', {
+            class: 'text-btn', type: 'button',
+            onclick: async () => {
+              const ok = await confirmDialog({ title: t('subs.unsubscribeTitle', { name: g ? g.name : '' }), body: t('subs.unsubscribeBody'), ok: t('subs.unsubscribe'), cancel: t('common.cancel'), danger: true });
+              if (!ok) return;
+              await unsubscribe(sub);
+              toast(t('library.deleted'));
+              draw();
+            },
+          }, t('subs.unsubscribe'))));
+      return { sub, row };
+    });
+    const checkAll = h('button', {
+      class: 'text-btn', type: 'button',
+      onclick: async () => { for (const { sub, row } of rows) { if (row.isConnected) await checkOne(sub, row); } },
+    }, t('subs.checkAll'));
+    fill(box, h('div', { class: 'section-head' }, h('h2', {}, t('subs.title')), h('span', { class: 'spacer' }), subs.length > 1 ? checkAll : null),
+      rows.map((r) => r.row));
+  };
+  draw();
+  return box;
 }
 
 async function estimateWarning(bytes) {

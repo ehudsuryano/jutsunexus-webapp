@@ -12,7 +12,7 @@ import { openZip, entryBlob, buildZip, textBlob, ZipError, ZipTooBigError } from
 
 export const PACKAGE_FORMAT_VERSION = 1;
 export const APP_NAME = 'JutsuNexus';
-export const APP_VERSION = '1.2.1-web';
+export const APP_VERSION = '1.3.0-web';
 
 async function readJson(source, entries, name) {
   const entry = entries.get(name);
@@ -64,18 +64,34 @@ function videosFirst(list) {
  * hold a whole library in one), then all rows in a single transaction; any failure removes the
  * files stored so far, so a failed import leaves nothing behind.
  */
-export async function importPackage(pkg, destinationGroupId, onProgress) {
+/**
+ * options (as in the app's importManager.ts):
+ *  dedupeNames (true)  — rename root items that clash with the destination's ("Guard (2)"). A
+ *                        syllabus update turns it off: the old copies are deleted right after.
+ *  mergeSingleRootGroup — a package that is one group pours that group's contents straight into
+ *                        the destination instead of nesting a copy; its fields come back as
+ *                        `mergedRoot` for the caller to adopt (a subscription's own group).
+ */
+export async function importPackage(pkg, destinationGroupId, onProgress, options = {}) {
+  const { dedupeNames = true, mergeSingleRootGroup = false } = options;
   const { source, entries, manifest, groups, techniques, media } = pkg;
   const destination = validGroupId(destinationGroupId);
   const now = Date.now();
 
   const groupIdMap = new Map(groups.map((g) => [g.id, uuid()]));
   const techniqueIdMap = new Map(techniques.map((x) => [x.id, uuid()]));
+  const packageGroupIds = new Set(groups.map((g) => g.id));
+  const rootGroups = groups.filter((g) => g.parentId == null || !packageGroupIds.has(g.parentId));
+  const rootTechniques = techniques.filter((x) => x.groupId == null || !packageGroupIds.has(x.groupId));
+  const mergedRootDto = mergeSingleRootGroup && destination != null && rootGroups.length === 1 && rootTechniques.length === 0
+    ? rootGroups[0] : null;
+  if (mergedRootDto) groupIdMap.set(mergedRootDto.id, destination);
 
   const taken = new Set([...childGroups(destination), ...childTechniques(destination)].map((x) => x.name.toLowerCase()));
   let renamed = 0;
   const uniqueName = (name) => {
     const n = String(name || '').trim() || t('common.untitled');
+    if (!dedupeNames) return n;
     if (!taken.has(n.toLowerCase())) { taken.add(n.toLowerCase()); return n; }
     let c = 2;
     while (taken.has(`${n.toLowerCase()} (${c})`)) c++;
@@ -101,6 +117,7 @@ export async function importPackage(pkg, destinationGroupId, onProgress) {
   try {
     const groupRows = [];
     for (const g of groups) {
+      if (g === mergedRootDto) continue;
       const id = groupIdMap.get(g.id);
       const parent = g.parentId != null ? groupIdMap.get(g.parentId) ?? null : null;
       const coverKey = g.coverEntry ? `c:${id}:${now}` : null;
@@ -162,8 +179,16 @@ export async function importPackage(pkg, destinationGroupId, onProgress) {
       ordered.forEach((m, i) => { m.sortOrder = i + 1; });
     }
 
+    // The merged group's own cover, under a new key so an update never overwrites the one in use.
+    let mergedRoot = null;
+    if (mergedRootDto) {
+      const coverKey = mergedRootDto.coverEntry ? `c:${destination}:${now}` : null;
+      const hasCover = coverKey ? await storeEntry(mergedRootDto.coverEntry, coverKey) : false;
+      mergedRoot = { dto: mergedRootDto, coverKey: hasCover ? coverKey : null };
+    }
+
     await commit({ groups: groupRows, techniques: techniqueRows, media: mediaRows });
-    return { groups: groupRows.length, techniques: techniqueRows.length, media: mediaRows.length, skipped, renamed };
+    return { groups: groupRows.length, techniques: techniqueRows.length, media: mediaRows.length, skipped, renamed, mergedRoot };
   } catch (e) {
     await db.deleteBlobs(storedKeys).catch(() => {});
     if (db.isQuotaError(e)) throw new Error(t('import.noSpace'));

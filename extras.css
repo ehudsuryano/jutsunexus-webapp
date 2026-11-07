@@ -63,3 +63,16 @@
 .drive-link { margin-top: 10px; font-size: 14px; }
 .drive-qr { display: block; width: min(220px, 60vw); margin: 14px auto 4px; }
 .drive-account { text-align: center; margin-top: 16px; }
+
+/* Syllabus subscriptions */
+.syllabus-banner { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 12px; }
+.syllabus-banner svg { flex: none; color: var(--tertiary); margin-top: 2px; }
+.syllabus-banner p { margin: 0; }
+.subscribe-box { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--outline-variant); }
+.subscribe-box h3 { font-size: 15px; margin-bottom: 4px; }
+.subscribe-box .btn { margin-top: 10px; }
+.subs-card .sub-row { padding: 10px 0; border-top: 1px solid var(--outline-variant); }
+.subs-card .sub-row:first-of-type { border-top: 0; }
+.sub-name { display: inline-flex; align-items: center; gap: 8px; color: var(--on-bg); font-weight: 650; text-decoration: none; }
+.sub-name svg { color: var(--tertiary); flex: none; }
+.subs-card .row { margin-top: 6px; }

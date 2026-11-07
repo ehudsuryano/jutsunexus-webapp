@@ -7,6 +7,7 @@ import {
 import { chrome, $main, nav, goBack, routes, groupOptions } from '../ui.js';
 import { urlFor, coverFromImage } from '../media.js';
 import { pickMedia, storePicked, ADD_KINDS } from '../addmedia.js';
+import { lockOfGroup, lockOfTechnique } from '../subscriptions.js';
 import { formatBytes } from '../ui.js';
 
 function field(label, control, hint) {
@@ -112,6 +113,8 @@ function saveBar(onSave) {
 export function renderTechniqueEditor({ id, inGroup }) {
   const existing = id ? lib.techniques.get(id) : null;
   if (id && !existing) { nav('/', { replace: true }); return; }
+  if (existing && lockOfTechnique(id)) { toast(t('subs.readOnly'), 5000); nav(routes.technique(id), { replace: true }); return; }
+  if (!existing && inGroup && inGroup !== 'root' && lockOfGroup(inGroup)) inGroup = 'root';
   const x = existing ? { ...existing } : newTechnique(inGroup === 'root' ? null : inGroup);
 
   const name = textInput(x.name, { required: true, maxlength: 200, enterkeyhint: 'next' });
@@ -141,7 +144,7 @@ export function renderTechniqueEditor({ id, inGroup }) {
     // A related link has no direction: un-ticking one also clears it on the other technique.
     const keep = new Set(row.relatedIds);
     const others = [...lib.techniques.values()]
-      .filter((o) => o.id !== row.id && (o.relatedIds || []).includes(row.id) && !keep.has(o.id))
+      .filter((o) => o.id !== row.id && (o.relatedIds || []).includes(row.id) && !keep.has(o.id) && !lockOfTechnique(o.id))
       .map((o) => ({ ...o, relatedIds: o.relatedIds.filter((r) => r !== row.id) }));
     await commit({ techniques: [{ ...row, modifiedAt: Date.now() }, ...others] });
     const c = cover.result();
@@ -219,6 +222,8 @@ function pendingMedia() {
 export function renderGroupEditor({ id, inGroup }) {
   const existing = id ? lib.groups.get(id) : null;
   if (id && !existing) { nav('/', { replace: true }); return; }
+  if (existing && lockOfGroup(id)) { toast(t('subs.readOnly'), 5000); nav(routes.group(id), { replace: true }); return; }
+  if (!existing && inGroup && inGroup !== 'root' && lockOfGroup(inGroup)) inGroup = 'root';
   const g = existing ? { ...existing } : newGroup(inGroup === 'root' ? null : inGroup);
 
   const name = textInput(g.name, { required: true, maxlength: 200 });

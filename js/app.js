@@ -8,6 +8,7 @@
  * A technique link's own fragment (#t1.…) and ?open=<package link> are accepted on arrival too.
  */
 import { load } from './library.js';
+import { loadSubscriptions } from './subscriptions.js';
 import { applyDocumentLanguage, t } from './i18n.js';
 import { $main, trackRoute, nav } from './ui.js';
 import { h, fill, toast } from './dom.js';
@@ -65,6 +66,7 @@ async function boot() {
   applyDocumentLanguage();
   try {
     await load();
+    await loadSubscriptions();
   } catch (e) {
     fill($main(), h('div', { class: 'card error-box' },
       h('h2', {}, t('boot.noStorageTitle')),

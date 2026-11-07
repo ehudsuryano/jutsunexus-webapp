@@ -1,6 +1,7 @@
 import { h, icon, iconButton, confirmDialog, toast, fill } from '../dom.js';
 import { t, tn, getLanguage, setLanguage, LANGUAGES } from '../i18n.js';
 import { totals, load } from '../library.js';
+import { loadSubscriptions } from '../subscriptions.js';
 import { clearEverything, getMeta, setMeta } from '../db.js';
 import { getPref, setPref, PHOTO_QUALITIES } from '../prefs.js';
 import { followTyping } from './editors.js';
@@ -91,6 +92,7 @@ export function renderMore() {
           await clearEverything();
           forgetAll();
           await load();
+          await loadSubscriptions();
           toast(t('more.deletedAll'));
           nav('/', { replace: true });
         },

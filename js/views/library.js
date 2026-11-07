@@ -7,6 +7,8 @@ import { openPlayer } from '../player.js';
 import { shareExport } from '../share.js';
 import { followTyping } from './editors.js';
 import { layoutSwitch, setLibraryLayout } from '../graph/view.js';
+import { lockOfGroup, unsubscribe } from '../subscriptions.js';
+import { syllabusBanner } from '../ui.js';
 
 /** Every video under a group (null = whole library), in browsing order, for "Play all". */
 export function videosUnder(groupId) {
@@ -30,13 +32,24 @@ export function addMenu(groupId) {
 }
 
 function groupMenu(g) {
+  const locked = lockOfGroup(g.id);
+  const isSyllabusRoot = locked && locked.rootGroupId === g.id;
   menu(g.name, [
-    { label: t('common.edit'), icon: 'edit', onSelect: () => nav(`/g/${g.id}/edit`) },
+    locked ? null : { label: t('common.edit'), icon: 'edit', onSelect: () => nav(`/g/${g.id}/edit`) },
     { label: t('library.playAll'), icon: 'play', onSelect: () => playAll(g.id) },
     { label: t('drive.menu'), icon: 'drive', onSelect: () => nav(`/drive/group/${g.id}`) },
     { label: t('share.packageMedia'), icon: 'share', onSelect: () => shareExport({ kind: 'group', id: g.id }, true) },
     { label: t('share.packageText'), icon: 'share', onSelect: () => shareExport({ kind: 'group', id: g.id }, false) },
-    {
+    isSyllabusRoot ? {
+      label: t('subs.unsubscribe'), icon: 'trash', danger: true,
+      onSelect: async () => {
+        const ok = await confirmDialog({ title: t('subs.unsubscribeTitle', { name: g.name }), body: t('subs.unsubscribeBody'), ok: t('subs.unsubscribe'), cancel: t('common.cancel'), danger: true });
+        if (!ok) return;
+        await unsubscribe(locked);
+        toast(t('library.deleted'));
+        nav('/', { replace: true });
+      },
+    } : locked ? null : {
       label: t('common.delete'), icon: 'trash', danger: true,
       onSelect: async () => {
         const n = techniquesUnder(g.id).length;
@@ -90,6 +103,7 @@ export function renderGroup(groupId) {
   const groups = childGroups(id);
   const techniques = childTechniques(id);
   const isEmptyLibrary = !g && lib.groups.size === 0 && lib.techniques.size === 0;
+  const locked = g ? lockOfGroup(g.id) : null;
 
   chrome({
     title: g ? g.name : t('library.title'),
@@ -98,7 +112,7 @@ export function renderGroup(groupId) {
     crumbs: g ? validGroupId(g.parentId) : undefined,
     crumbLeaf: g ? g.name : undefined,
     actions: [
-      iconButton('add', t('library.add'), () => addMenu(id)),
+      locked ? null : iconButton('add', t('library.add'), () => addMenu(id)),
       isEmptyLibrary ? null : iconButton('more', t('common.more'), () => (g ? groupMenu(g) : rootMenu())),
     ],
   });
@@ -119,9 +133,9 @@ export function renderGroup(groupId) {
     ? h('div', { class: `list view-${viewMode.toLowerCase()}` }, sortItems(groups, sortOption).map(groupRow), sortItems(techniques, sortOption).map(techniqueRow))
     : h('div', { class: 'empty' },
         h('p', {}, t('library.emptyGroup')),
-        h('button', { class: 'btn tonal', type: 'button', onclick: () => addMenu(id) }, icon('add', 20), t('library.add')));
+        locked ? null : h('button', { class: 'btn tonal', type: 'button', onclick: () => addMenu(id) }, icon('add', 20), t('library.add')));
 
-  fill($main(), h('div', { class: 'list-top' }, layoutSwitch('LIST', id), h('span', { class: 'spacer' }),
+  fill($main(), locked ? syllabusBanner(locked) : null, h('div', { class: 'list-top' }, layoutSwitch('LIST', id), h('span', { class: 'spacer' }),
     iconButton('tune', t('view.options'), () => viewOptions(() => renderGroup(groupId)))), head, list, !g ? installHint() : null);
 }
 

@@ -84,7 +84,8 @@ export async function urlSource(link, errors) {
   // A server that ignores Range sends the whole file: hold it as a local file.
   if (tailResponse.status === 200) {
     const blob = await tailResponse.blob();
-    return fileSource(new File([blob], name));
+    // Keep where it came from: subscriptions follow this link for updates.
+    return { ...fileSource(new File([blob], name)), link };
   }
   const tail = new Uint8Array(await tailResponse.arrayBuffer());
   const read = async (start, end) => new Uint8Array(await (await fetchRange(`bytes=${start}-${end - 1}`)).arrayBuffer());
