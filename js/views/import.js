@@ -189,7 +189,7 @@ function subscribeBox(pkg, link, title, others) {
         bar.value = done;
         msg.textContent = t('import.savingFiles', { done, total });
       });
-      toast(t('subs.subscribedTo', { name: name.value.trim() || t('subs.defaultName') }) + ' — ' + t('import.done', { techniques: result.techniques, media: result.media }), 5000);
+      toast(t('subs.subscribedTo', { name: lib.groups.get(rootGroupId)?.name || name.value.trim() }) + ' — ' + t('import.done', { techniques: result.techniques, media: result.media }), 5000);
       nav(routes.group(rootGroupId), { replace: true });
     } catch (e) {
       btn.disabled = false;

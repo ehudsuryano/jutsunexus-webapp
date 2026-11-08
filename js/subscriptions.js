@@ -13,7 +13,7 @@
 import { t } from './i18n.js';
 import { getMeta, setMeta } from './db.js';
 import {
-  lib, uuid, newGroup, commit, deleteGroup, deleteTechnique, childGroups, childTechniques, subtreeGroupIds,
+  lib, uuid, newGroup, commit, deleteGroup, deleteTechnique, childGroups, childTechniques, subtreeGroupIds, validGroupId,
 } from './library.js';
 import { readPackage, importPackage } from './packages.js';
 import { urlSource } from './zip.js';
@@ -102,16 +102,30 @@ async function adoptRoot(rootGroupId, mergedRoot, name = null) {
 const incomingName = (mergedRoot) => (mergedRoot && String(mergedRoot.dto.name || '').trim()) || null;
 
 /**
- * The sender's new folder name, when the subscriber kept the name the syllabus came with;
- * null to leave the name alone. A name typed into "Name in your library" is never overwritten.
- * Subscriptions made before 1.4.2 didn't record the name they came with, and that box starts
- * out holding it, so they follow.
+ * `name`, or "name (2)", "name (3)"… when a folder or technique beside the syllabus already has
+ * it (ignoring case), the same way an import names a clashing folder.
+ */
+function freeName(parentId, name, selfId = null) {
+  const taken = new Set([...childGroups(parentId), ...childTechniques(parentId)]
+    .filter((x) => x.id !== selfId).map((x) => x.name.toLowerCase()));
+  if (!taken.has(name.toLowerCase())) return name;
+  let c = 2;
+  while (taken.has(`${name.toLowerCase()} (${c})`)) c++;
+  return `${name} (${c})`;
+}
+
+/**
+ * The name the syllabus folder should now have when the subscriber kept the name it came with
+ * (`sourceName`: the name it last got from the sender, "(2)" included); null to leave it alone.
+ * A name typed into "Name in your library" is never overwritten. Subscriptions made before
+ * 1.4.2 didn't record the name they came with, and that box starts out holding it, so they follow.
  */
 function followedName(sub, group, mergedRoot) {
   const incoming = incomingName(mergedRoot);
-  if (!incoming || !group || group.name === incoming) return null;
+  if (!incoming || !group) return null;
   const cameWith = sub.sourceName == null ? group.name : sub.sourceName;
-  return group.name === cameWith ? incoming : null;
+  if (group.name !== cameWith) return null;
+  return freeName(validGroupId(group.parentId), incoming, group.id);
 }
 
 /**
@@ -119,7 +133,8 @@ function followedName(sub, group, mergedRoot) {
  * package imported into it, and where it came from recorded. Resolves { rootGroupId, result }.
  */
 export async function subscribe(pkg, link, name, onProgress) {
-  const group = { ...newGroup(null), name: String(name || '').trim() || t('subs.defaultName') };
+  const chosen = String(name || '').trim();
+  const group = { ...newGroup(null), name: freeName(null, chosen || t('subs.defaultName')) };
   await commit({ groups: [group] });
   try {
     const result = await importPackage(pkg, group.id, onProgress, { mergeSingleRootGroup: true });
@@ -127,7 +142,8 @@ export async function subscribe(pkg, link, name, onProgress) {
     const now = Date.now();
     subs.push({
       id: uuid(), url: link.trim(), rootGroupId: group.id, packageExportedAt: pkg.manifest.exportedAt || 0,
-      sourceName: incomingName(result.mergedRoot),
+      // Kept the name it came with -> remember the name it got (maybe "(2)"), so renames follow.
+      sourceName: chosen && chosen === incomingName(result.mergedRoot) ? group.name : incomingName(result.mergedRoot),
       addedAt: now, lastCheckedAt: now, lastUpdatedAt: now,
     });
     await save();
@@ -158,10 +174,12 @@ export async function checkForUpdate(sub, onProgress) {
   const result = await importPackage(pkg, root, onProgress, { mergeSingleRootGroup: true, dedupeNames: false });
   for (const id of oldGroups) await deleteGroup(id);
   for (const id of oldTechniques) await deleteTechnique(id);
-  await adoptRoot(root, result.mergedRoot, followedName(record || sub, lib.groups.get(root), result.mergedRoot));
+  const group = lib.groups.get(root);
+  const followed = followedName(record || sub, group, result.mergedRoot);
+  await adoptRoot(root, result.mergedRoot, followed && followed !== group.name ? followed : null);
   if (record) {
     record.packageExportedAt = pkg.manifest.exportedAt || 0;
-    if (incomingName(result.mergedRoot)) record.sourceName = incomingName(result.mergedRoot);
+    if (followed) record.sourceName = followed;
     record.lastCheckedAt = now;
     record.lastUpdatedAt = now;
     await save();
