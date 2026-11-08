@@ -87,15 +87,31 @@ export function sourceForLink(link) {
 }
 
 /** Copies the package's own root-group fields onto the syllabus group (after a merge). */
-async function adoptRoot(rootGroupId, mergedRoot) {
+async function adoptRoot(rootGroupId, mergedRoot, name = null) {
   if (!mergedRoot) return;
   const g = lib.groups.get(rootGroupId);
   if (!g) return;
   const d = mergedRoot.dto;
   await commit({
-    groups: [{ ...g, description: d.description || '', tags: d.tags || [], notes: d.notes || '', links: d.links || [], coverKey: mergedRoot.coverKey, modifiedAt: Date.now() }],
+    groups: [{ ...g, ...(name ? { name } : {}), description: d.description || '', tags: d.tags || [], notes: d.notes || '', links: d.links || [], coverKey: mergedRoot.coverKey, modifiedAt: Date.now() }],
     delBlobs: g.coverKey && g.coverKey !== mergedRoot.coverKey ? [g.coverKey] : [],
   });
+}
+
+/** The name of the package's own folder, when it is a single folder; else null. */
+const incomingName = (mergedRoot) => (mergedRoot && String(mergedRoot.dto.name || '').trim()) || null;
+
+/**
+ * The sender's new folder name, when the subscriber kept the name the syllabus came with;
+ * null to leave the name alone. A name typed into "Name in your library" is never overwritten.
+ * Subscriptions made before 1.4.2 didn't record the name they came with, and that box starts
+ * out holding it, so they follow.
+ */
+function followedName(sub, group, mergedRoot) {
+  const incoming = incomingName(mergedRoot);
+  if (!incoming || !group || group.name === incoming) return null;
+  const cameWith = sub.sourceName == null ? group.name : sub.sourceName;
+  return group.name === cameWith ? incoming : null;
 }
 
 /**
@@ -111,6 +127,7 @@ export async function subscribe(pkg, link, name, onProgress) {
     const now = Date.now();
     subs.push({
       id: uuid(), url: link.trim(), rootGroupId: group.id, packageExportedAt: pkg.manifest.exportedAt || 0,
+      sourceName: incomingName(result.mergedRoot),
       addedAt: now, lastCheckedAt: now, lastUpdatedAt: now,
     });
     await save();
@@ -141,9 +158,10 @@ export async function checkForUpdate(sub, onProgress) {
   const result = await importPackage(pkg, root, onProgress, { mergeSingleRootGroup: true, dedupeNames: false });
   for (const id of oldGroups) await deleteGroup(id);
   for (const id of oldTechniques) await deleteTechnique(id);
-  await adoptRoot(root, result.mergedRoot);
+  await adoptRoot(root, result.mergedRoot, followedName(record || sub, lib.groups.get(root), result.mergedRoot));
   if (record) {
     record.packageExportedAt = pkg.manifest.exportedAt || 0;
+    if (incomingName(result.mergedRoot)) record.sourceName = incomingName(result.mergedRoot);
     record.lastCheckedAt = now;
     record.lastUpdatedAt = now;
     await save();

@@ -417,7 +417,7 @@ export const en = {
   'subs.from': 'From {source}',
   'subs.nameInLibrary': 'Name in your library',
   'subs.namePlaceholder': 'e.g. Yellow belt syllabus',
-  'subs.subscribeHint': 'It becomes a read-only group in your library. “Check for updates” on the Import tab reads this link again and replaces the group with the newest version, so keep your own notes in your own techniques.',
+  'subs.subscribeHint': 'It becomes a read-only group in your library. “Check for updates” on the Import tab reads this link again and replaces the group with the newest version, so keep your own notes in your own techniques. Leave the name as it is and it follows the sender’s renames; change it and yours stays.',
   'subs.subscribe': 'Subscribe',
   'subs.subscribing': 'Subscribing…',
   'subs.subscribedTo': 'Subscribed to “{name}”',
