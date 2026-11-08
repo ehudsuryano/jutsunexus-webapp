@@ -12,7 +12,7 @@ import { openZip, entryBlob, buildZip, textBlob, ZipError, ZipTooBigError } from
 
 export const PACKAGE_FORMAT_VERSION = 1;
 export const APP_NAME = 'JutsuNexus';
-export const APP_VERSION = '1.4.2-web';
+export const APP_VERSION = '1.5.0-web';
 
 async function readJson(source, entries, name) {
   const entry = entries.get(name);
@@ -71,9 +71,14 @@ function videosFirst(list) {
  *  mergeSingleRootGroup — a package that is one group pours that group's contents straight into
  *                        the destination instead of nesting a copy; its fields come back as
  *                        `mergedRoot` for the caller to adopt (a subscription's own group).
+ *  reuse(m, entry, srcKey) — a syllabus update: returns a media row already on this device that
+ *                        holds the same file ({ blobKey, thumbKey, thumbOk }), or null. Its bytes
+ *                        are copied locally and the entry is never read from the package, so
+ *                        only new or changed media are downloaded.
+ * Every imported media row records `srcKey` (sender's media id | CRC-32 | size) for that.
  */
 export async function importPackage(pkg, destinationGroupId, onProgress, options = {}) {
-  const { dedupeNames = true, mergeSingleRootGroup = false } = options;
+  const { dedupeNames = true, mergeSingleRootGroup = false, reuse = null } = options;
   const { source, entries, manifest, groups, techniques, media } = pkg;
   const destination = validGroupId(destinationGroupId);
   const now = Date.now();
@@ -89,6 +94,8 @@ export async function importPackage(pkg, destinationGroupId, onProgress, options
 
   const taken = new Set([...childGroups(destination), ...childTechniques(destination)].map((x) => x.name.toLowerCase()));
   let renamed = 0;
+  let reused = 0;
+  let reusedBytes = 0;
   const uniqueName = (name) => {
     const n = String(name || '').trim() || t('common.untitled');
     if (!dedupeNames) return n;
@@ -157,12 +164,35 @@ export async function importPackage(pkg, destinationGroupId, onProgress, options
       const id = uuid();
       const blobKey = `m:${id}`;
       const mimeType = m.mimeType || guessMime(m.fileName);
-      if (!(await storeEntry(m.zipEntry, blobKey, mimeType))) { skipped++; tick(); continue; }
+      const entry = m.zipEntry ? entries.get(m.zipEntry) : null;
+      const srcKey = entry ? `${m.id}|${entry.crc}|${entry.size}` : null;
+      let thumbKey = null;
+      let thumbOk = false;
+      let stored = false;
+      const kept = reuse && entry ? reuse(m, entry, srcKey) : null;
+      if (kept) {
+        const blob = await db.getBlob(kept.blobKey).catch(() => null);
+        if (blob) {
+          await db.putBlob(blobKey, blob);
+          storedKeys.push(blobKey);
+          stored = true;
+          reused++;
+          reusedBytes += entry.size;
+          const thumb = kept.thumbKey ? await db.getBlob(kept.thumbKey).catch(() => null) : null;
+          if (thumb) {
+            thumbKey = `th:${id}`;
+            await db.putBlob(thumbKey, thumb);
+            storedKeys.push(thumbKey);
+            thumbOk = !!kept.thumbOk;
+          }
+        }
+      }
+      if (!stored && !(await storeEntry(m.zipEntry, blobKey, mimeType))) { skipped++; tick(); continue; }
       mediaRows.push({
         id, techniqueId, type: m.type || 'DOCUMENT', fileName: m.fileName || 'file', mimeType,
         sizeBytes: entries.get(m.zipEntry)?.size ?? m.sizeBytes ?? 0,
         durationMs: m.durationMs ?? null, width: m.width ?? null, height: m.height ?? null,
-        sortOrder: m.sortOrder ?? 0, createdAt: now, blobKey, thumbKey: null,
+        sortOrder: m.sortOrder ?? 0, createdAt: now, blobKey, thumbKey, ...(thumbOk ? { thumbOk } : {}), srcKey,
       });
       tick();
     }
@@ -188,7 +218,7 @@ export async function importPackage(pkg, destinationGroupId, onProgress, options
     }
 
     await commit({ groups: groupRows, techniques: techniqueRows, media: mediaRows });
-    return { groups: groupRows.length, techniques: techniqueRows.length, media: mediaRows.length, skipped, renamed, mergedRoot };
+    return { groups: groupRows.length, techniques: techniqueRows.length, media: mediaRows.length, skipped, renamed, mergedRoot, reused, reusedBytes };
   } catch (e) {
     await db.deleteBlobs(storedKeys).catch(() => {});
     if (db.isQuotaError(e)) throw new Error(t('import.noSpace'));

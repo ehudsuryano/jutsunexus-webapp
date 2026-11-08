@@ -98,6 +98,24 @@ async function adoptRoot(rootGroupId, mergedRoot, name = null) {
   });
 }
 
+/**
+ * What the syllabus already holds, for an update to keep instead of downloading again: media by
+ * `srcKey` (sender's media id | CRC-32 | size), and, for media imported before 1.5.0 that don't
+ * record one, by file name and exact size.
+ */
+function reuseIndex(rootGroupId) {
+  const groupIds = subtreeGroupIds(rootGroupId);
+  const bySource = new Map();
+  const byFile = new Map();
+  for (const m of lib.media.values()) {
+    const owner = lib.techniques.get(m.techniqueId);
+    if (!owner || !groupIds.has(owner.groupId)) continue;
+    if (m.srcKey) bySource.set(m.srcKey, m);
+    else byFile.set(`${m.fileName}|${m.sizeBytes}`, m);
+  }
+  return (m, entry, srcKey) => bySource.get(srcKey) || byFile.get(`${m.fileName || 'file'}|${entry.size}`) || null;
+}
+
 /** The name of the package's own folder, when it is a single folder; else null. */
 const incomingName = (mergedRoot) => (mergedRoot && String(mergedRoot.dto.name || '').trim()) || null;
 
@@ -171,7 +189,8 @@ export async function checkForUpdate(sub, onProgress) {
   const oldGroups = childGroups(root).map((g) => g.id);
   const oldTechniques = childTechniques(root).map((x) => x.id);
   // No renaming: the old copies are about to go, and "(2)" suffixes would outlive them.
-  const result = await importPackage(pkg, root, onProgress, { mergeSingleRootGroup: true, dedupeNames: false });
+  // Unchanged media are copied from the syllabus already here; only new or changed ones download.
+  const result = await importPackage(pkg, root, onProgress, { mergeSingleRootGroup: true, dedupeNames: false, reuse: reuseIndex(root) });
   for (const id of oldGroups) await deleteGroup(id);
   for (const id of oldTechniques) await deleteTechnique(id);
   const group = lib.groups.get(root);

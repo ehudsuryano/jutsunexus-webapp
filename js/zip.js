@@ -106,7 +106,7 @@ function u64(view, at) {
 
 export class ZipError extends Error {}
 
-/** Map of entry name → { name, method, compSize, size, offset }. */
+/** Map of entry name → { name, method, crc, compSize, size, offset }. */
 export async function openZip(src) {
   const tail = await src.readTail(22 + 65535);
   const tv = new DataView(tail.buffer, tail.byteOffset, tail.byteLength);
@@ -139,6 +139,7 @@ export async function openZip(src) {
   for (let n = 0; n < count && p + 46 <= cd.length; n++) {
     if (v.getUint32(p, true) !== 0x02014b50) break;
     const method = v.getUint16(p + 10, true);
+    const crc = v.getUint32(p + 16, true);
     let compSize = v.getUint32(p + 20, true);
     let size = v.getUint32(p + 24, true);
     const nameLen = v.getUint16(p + 28, true);
@@ -159,7 +160,7 @@ export async function openZip(src) {
       }
       e += 4 + len;
     }
-    entries.set(name.replace(/\\/g, '/'), { name, method, compSize, size, offset });
+    entries.set(name.replace(/\\/g, '/'), { name, method, crc, compSize, size, offset });
     p += 46 + nameLen + extraLen + commentLen;
   }
   return entries;
