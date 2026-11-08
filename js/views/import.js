@@ -95,7 +95,8 @@ export function renderImport(dest) {
     subscriptionsCard(),
     isIos() ? h('div', { class: 'card' },
       h('h2', {}, t('import.iosTitle')),
-      h('ol', {}, h('li', {}, t('import.ios1')), h('li', {}, t('import.ios2')), h('li', {}, t('import.ios3')), h('li', {}, t('import.ios4')))) : null,
+      h('ol', {}, h('li', {}, t('import.ios1')), h('li', {}, t('import.ios3')), h('li', {}, t('import.ios4'))),
+      h('p', {}, t('import.ios2'))) : null,
     h('div', { class: 'card' }, h('h2', {}, t('import.privacyTitle')), h('p', {}, t('import.privacyBody'))));
 
   if (pendingLink) {

@@ -5,7 +5,7 @@
  * Bump VERSION with every release: the new worker caches the new files, and the page offers an
  * "Update" button that swaps it in.
  */
-const VERSION = 'jn-web-1.4.0';
+const VERSION = 'jn-web-1.4.1';
 const FILES = [
   './',
   'index.html',
